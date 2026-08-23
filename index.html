@@ -17,29 +17,31 @@
     /* Desktop readability overrides for the filtered management workspace. */
     body:has(.workspace.ready) .main{display:flex;flex-direction:column;height:100vh;overflow:hidden}
     body:has(.workspace.ready) .content{flex:1;min-height:0;overflow:hidden;padding:16px 28px 0;display:flex;flex-direction:column}
-    .workspace.ready{display:flex;flex-direction:column;gap:0;flex:1;min-height:0;overflow:hidden}
-    .filters{position:relative;flex-shrink:0;z-index:2;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:12px;box-shadow:var(--shadow);max-height:min(46vh,460px);overflow:auto}
-    .filters .filter-head{margin-bottom:8px}
-    .filters .search{max-width:none;width:100%;margin-bottom:10px}
-    #filterGroups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px;align-items:stretch}
-    .stage{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:0 0 16px}
-    .stage > .scope-bar{flex-shrink:0;margin-top:0}
-    .stage > .view.active{flex:1;min-height:0;overflow:auto}
-    .filters .filter-group{border-top:0;padding:8px 10px;margin-top:0;background:#f8fafc;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;min-height:96px;max-height:120px;overflow:hidden}
-    .filters .filter-label{margin-bottom:5px;font-size:11px;flex-shrink:0}
-    .filters .pills{flex:1;min-height:0;max-height:none;overflow:auto;align-content:flex-start}
-    @media(min-width:1500px){#filterGroups{grid-template-columns:repeat(5,minmax(0,1fr))}}
-    @media(max-width:1100px){#filterGroups{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:760px){body:has(.workspace.ready) .main{height:auto;overflow:visible}body:has(.workspace.ready) .content{overflow:visible;padding:14px}.workspace.ready{overflow:visible}.stage{overflow:visible;padding-bottom:14px}#filterGroups{grid-template-columns:1fr}.filters{max-height:none;margin-bottom:14px}}
+    .workspace.ready{display:flex!important;flex-direction:column;gap:0;flex:1;min-height:0;overflow:hidden;grid-template-columns:none}
+    .filters{position:relative;flex:0 0 auto;z-index:5;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px 8px;margin-bottom:10px;box-shadow:var(--shadow);overflow:visible}
+    .filters .filter-head{margin-bottom:6px;gap:8px}
+    .filters .search{max-width:none;width:100%;margin-bottom:8px;padding:8px 10px}
+    #filterGroups{display:flex;flex-direction:column;gap:4px}
+    .filters .filter-group{border:0;padding:0;margin:0;background:transparent;border-radius:0;display:grid;grid-template-columns:84px minmax(0,1fr);gap:8px;align-items:center;min-height:unset;max-height:unset;overflow:visible}
+    .filters .filter-label{margin:0;font-size:10px;line-height:1.25;flex-shrink:0;display:flex;flex-direction:column;gap:1px;color:var(--muted)}
+    .filters .filter-label span:first-child{color:var(--ink);font-size:11px;font-weight:800}
+    .filters .pills{display:flex;flex-wrap:nowrap;gap:5px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:2px 0 4px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+    .filters .pill{flex:0 0 auto;padding:4px 8px;font-size:11px;white-space:nowrap}
+    .filters.collapsed #filterGroups{display:none}
+    .filters.collapsed .search{margin-bottom:0}
+    .stage{flex:1 1 0;min-height:0;overflow:auto;display:block;padding:0 0 16px;-webkit-overflow-scrolling:touch}
+    .stage > .scope-bar{position:sticky;top:0;z-index:3;margin-bottom:12px}
+    .stage > .view.active{display:block;min-height:unset;overflow:visible;flex:none}
+    @media(max-width:760px){body:has(.workspace.ready) .main{height:auto;overflow:visible}body:has(.workspace.ready) .content{overflow:visible;padding:14px}.workspace.ready{overflow:visible}.stage{overflow:visible;padding-bottom:14px}.filters .filter-group{grid-template-columns:72px minmax(0,1fr)}}
     .kpis{grid-template-columns:repeat(5,minmax(0,1fr))}.kpi{min-width:0}.k-value{font-size:24px;white-space:nowrap}.alert-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.alert-card{min-width:0}
     @media(max-width:1300px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
     .detail-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.font-control{display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}.font-control button{width:34px;height:34px;border:0;background:#fff;color:var(--ink);font-size:18px;font-weight:900;cursor:pointer}.font-control button:hover{background:#eef4ff}.font-control span{min-width:52px;text-align:center;color:var(--muted);font-size:11px;font-weight:800}.detail-content{--detail-font:12px;background:#fff}.detail-content .detail-grid{font-size:var(--detail-font)}.detail-content .detail-data-table{font-size:var(--detail-font);min-width:1420px;table-layout:fixed}.detail-content .detail-data-table th,.detail-content .detail-data-table td{white-space:normal;word-break:break-word;vertical-align:top}.detail-content .detail-data-table th:nth-child(1){width:64px}.detail-content .detail-data-table th:nth-child(2){width:82px}.detail-content .detail-data-table th:nth-child(3),.detail-content .detail-data-table th:nth-child(6){width:105px}.detail-content .detail-data-table th:nth-child(4),.detail-content .detail-data-table th:nth-child(5),.detail-content .detail-data-table th:nth-child(7),.detail-content .detail-data-table th:nth-child(8){width:110px}.detail-content .detail-data-table th:nth-child(9){width:120px}.detail-content .detail-data-table th:nth-child(10){width:360px}.detail-content.capture-mode{width:1540px;padding:24px}.detail-content.capture-mode .table-wrap{overflow:visible}.detail-content.capture-mode .panel{box-shadow:none}.detail-content.capture-mode .data-table th{position:static}.detail-content.capture-mode .detail-grid{grid-template-columns:repeat(4,1fr)}
     .cases-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
-    #cases.active{display:flex;flex-direction:column;min-height:0}
-    #cases .view-head{flex-shrink:0}
-    #cases .panel{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-    #cases .panel .table-wrap{flex:1;min-height:0;overflow:auto;max-width:100%}
-    #cases .panel .pager{flex-shrink:0;border-top:1px solid var(--line)}
+    #cases.active{display:block;min-height:unset;overflow:visible}
+    #cases .view-head{margin-bottom:10px}
+    #cases .panel{overflow:hidden}
+    #cases .panel .table-wrap{overflow-x:auto;max-width:100%}
+    #cases .panel .pager{border-top:1px solid var(--line)}
     .cases-list-table{--cases-font:12px;width:100%;min-width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse;font-size:var(--cases-font)}
     .cases-list-table th,.cases-list-table td{font-size:inherit;padding:5px 7px;line-height:1.3;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
     .cases-list-table thead th{position:sticky;top:0;z-index:2;background:#f6f8fb;box-shadow:0 1px 0 var(--line);white-space:nowrap}
@@ -101,7 +103,7 @@
     <div class="content">
       <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>系統會自動載入 Cloudflare RPA 每日同步的星鴻「欠租1天」資料。若雲端尚未就緒，可手動匯入公司 Excel。</p><button class="btn primary" onclick="loadDailyData(true)">重新載入雲端資料</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 雲端同步</span><span>每 15 分鐘自動更新</span></div></div></section>
       <section class="workspace" id="workspace">
-        <div class="filters"><div class="filter-head"><h3>查詢條件</h3><div class="spacer"></div><button class="link-btn" onclick="clearFilters()">清除全部</button></div><input class="search" id="query" placeholder="編號／地址／承租人／備註" oninput="state.filters.q=this.value.trim();state.page=1;render()"><div id="filterGroups"></div></div>
+        <div class="filters"><div class="filter-head"><h3>查詢條件</h3><div class="spacer"></div><button class="link-btn" type="button" id="filterCollapseBtn" onclick="toggleFiltersCollapse()">收合</button><button class="link-btn" onclick="clearFilters()">清除全部</button></div><input class="search" id="query" placeholder="編號／地址／承租人／備註" oninput="state.filters.q=this.value.trim();state.page=1;render()"><div id="filterGroups"></div></div>
         <div class="stage">
           <div class="scope-bar" id="scopeBar"></div>
           <section class="view active" id="overview"></section>
@@ -257,6 +259,7 @@ function labelOption(key,v){if(key==='alert')return ALERTS.find(x=>x.key===v)?.l
 function buildFilters(){const host=$('filterGroups');host.innerHTML=FILTER_DEFS.map(([key,label])=>`<div class="filter-group"><div class="filter-label"><span>${label}</span><span>${state.filters[key].length||'全部'}</span></div><div class="pills">${optionsFor(key).map(v=>`<button class="pill ${state.filters[key].includes(v)?'active':''}" onclick="toggleFilter('${key}','${esc(v)}')">${esc(labelOption(key,v))}</button>`).join('')}</div></div>`).join('')}
 function toggleFilter(key,value){const a=state.filters[key],i=a.indexOf(value);i>=0?a.splice(i,1):a.push(value);if(key==='region'){state.filters.office=[];state.filters.staff=[]}if(key==='office')state.filters.staff=[];state.page=1;buildFilters();render()}
 function clearFilters(){state.filters=DEFAULT_FILTERS();$('query').value='';state.page=1;buildFilters();render();toast('已清除查詢條件，保留預設「轉租」')}
+function toggleFiltersCollapse(){const el=document.querySelector('#workspace .filters'),btn=$('filterCollapseBtn');if(!el||!btn)return;el.classList.toggle('collapsed');btn.textContent=el.classList.contains('collapsed')?'展開':'收合'}
 function filteredCases(){const f=state.filters,q=f.q.toLowerCase();return state.cases.filter(c=>(!q||c.search.includes(q)||String(c.aiProgress||'').toLowerCase().includes(q)||String(c.displayMemo||'').toLowerCase().includes(q))&&(!f.region.length||f.region.includes(c.region))&&(!f.office.length||f.office.includes(c.office))&&(!f.staff.length||f.staff.includes(c.staff))&&(!f.city.length||f.city.includes(c.city))&&(!f.type.length||f.type.includes(c.type))&&(!f.status.length||[...c.statuses].some(x=>f.status.includes(x)))&&(!f.alert.length||f.alert.includes(c.alert.key))&&(!f.stage.length||f.stage.includes(String(c.collectionStage)))&&(!f.risk.length||(f.risk.includes('')&&!c.riskLevel)||f.risk.includes(c.riskLevel)))}
 function sum(rows,key='amount'){return rows.reduce((s,r)=>s+Number(r[key]||0),0)}
 function scopeText(rows){const tags=[];for(const [k,l] of FILTER_DEFS){if(state.filters[k].length)tags.push(`${l}：${state.filters[k].map(v=>labelOption(k,v)).join('、')}`)}if(state.filters.q)tags.push(`關鍵字：${state.filters.q}`);return tags.length?tags.join('｜'):'目前範圍：全國所有有效呆帳'}
