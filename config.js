@@ -1,5 +1,6 @@
 /** 受保護的 Cloudflare Worker 資料 API（需登入後帶 session） */
 window.ARREARS_DATA_URL = 'https://skyfun-arrears-rpa.dahwork123.workers.dev/data/latest.json';
+window.ARREARS_SYNC_URL = 'https://skyfun-arrears-rpa.dahwork123.workers.dev/sync';
 window.ARREARS_DATA_URL_FALLBACK = '';
 /** 開啟頁面時每隔幾分鐘自動重新載入（0 = 關閉） */
 window.AUTO_REFRESH_MINUTES = 15;

@@ -125,9 +125,9 @@
     <div class="privacy">每日由 Cloudflare RPA 自星鴻系統同步；亦可手動匯入 Excel 覆蓋。<br>資料僅供內部追蹤，請勿外流。</div>
   </aside>
   <main class="main">
-    <header class="topbar"><div class="title"><h2 id="pageTitle">全國呆帳營運總覽</h2><p id="sourceMeta">請先登入…</p></div><div class="spacer"></div><span id="authUserLabel" style="display:none;font-size:12px;color:var(--muted);margin-right:8px;font-weight:700"></span><button class="btn" id="authLogoutBtn" style="display:none">登出</button>&nbsp;<button class="btn" id="refreshBtn" onclick="loadDailyData(true)">重新載入</button>&nbsp;<button class="btn" id="exportBtn" style="display:none" onclick="exportTracking()">匯出追蹤 Excel</button>&nbsp;<button class="btn primary" onclick="document.getElementById('fileInput').click()">匯入 Excel 覆蓋</button></header>
+    <header class="topbar"><div class="title"><h2 id="pageTitle">全國呆帳營運總覽</h2><p id="sourceMeta">請先登入…</p></div><div class="spacer"></div><span id="authUserLabel" style="display:none;font-size:12px;color:var(--muted);margin-right:8px;font-weight:700"></span><button class="btn" id="authLogoutBtn" style="display:none">登出</button>&nbsp;<button class="btn" id="refreshBtn" onclick="loadDailyData(true)">同步星鴻並載入</button>&nbsp;<button class="btn" id="exportBtn" style="display:none" onclick="exportTracking()">匯出追蹤 Excel</button>&nbsp;<button class="btn primary" onclick="document.getElementById('fileInput').click()">匯入 Excel 覆蓋</button></header>
     <div class="content">
-      <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>系統會自動載入 Cloudflare RPA 每日同步的星鴻「欠租1天」資料。若雲端尚未就緒，可手動匯入公司 Excel。</p><button class="btn primary" onclick="loadDailyData(true)">重新載入雲端資料</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 雲端同步</span><span>每 15 分鐘自動更新</span></div></div></section>
+      <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>系統會自動載入 Cloudflare RPA 每日同步的星鴻「欠租1天」資料。按「同步星鴻並載入」可立即從星鴻重抓最新備註（約 1～2 分鐘）。</p><button class="btn primary" onclick="loadDailyData(true)">同步星鴻並載入</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 自動同步</span><span>每 15 分鐘刷新快取</span></div></div></section>
       <section class="workspace" id="workspace">
         <div class="filters"><div class="filter-head"><h3>查詢條件</h3><div class="spacer"></div><button class="link-btn" type="button" id="filterCollapseBtn" onclick="toggleFiltersCollapse()">收合</button><button class="link-btn" onclick="clearFilters()">清除全部</button></div><input class="search" id="query" placeholder="編號／地址／承租人／備註" oninput="state.filters.q=this.value.trim();state.page=1;render()"><div id="filterGroups"></div></div>
         <div class="stage">
@@ -163,7 +163,8 @@ function inferAiProgress(c){const ex=loadCaseExtras(c.caseId);if(ex.aiProgress)r
 function nextActionOf(c){const ex=loadCaseExtras(c.caseId);if(ex.nextAction)return ex.nextAction;if(c.repayDate&&!isRepayOverdue(c))return'待匯款回覆確認';if(c.repayDate&&isRepayOverdue(c))return'承諾還款已逾期，需追蹤';const st=stageOf(c.maxDays);if(st===1)return'今日 LINE 催繳';if(st===2){if(/未接|忙線/.test(c.note||''))return'再撥 AI 電話';if(c.riskLevel==='高')return'逾期，轉待家訪';return'今日電話催收'}if(st===3)return'家訪處理／貼單';return'寄送存證信函'}
 function parseRocDateText(s){if(!s)return null;const m=String(s).match(/^(\d{2,3})\/(\d{1,2})\/(\d{1,2})$/);if(!m)return null;return new Date(Number(m[1])+1911,Number(m[2])-1,Number(m[3]))}
 function isRepayOverdue(c){const d=parseRocDateText(c.repayDate);if(!d)return false;const t=new Date();t.setHours(0,0,0,0);return d<t}
-function latestMemo(c){const ex=loadCaseExtras(c.caseId),parts=[ex.localMemo,c.note].filter(Boolean);return parts.join('\n').split('\n').filter(Boolean).pop()||''}
+function pickCaseNote(lines){const notes=lines.map(l=>String(l.note||'').trim()).filter(Boolean);if(!notes.length)return'';const primary=notes.filter(n=>!/^同上/.test(n));const pool=primary.length?primary:notes;return pool.sort((a,b)=>b.length-a.length)[0]}
+function latestMemo(c){const ex=loadCaseExtras(c.caseId);if(ex.localMemo)return ex.localMemo.split('\n').filter(Boolean).pop()||'';const sys=c.note||'';if(!sys)return'';return sys.split('\n').filter(Boolean).pop()||sys.slice(0,80)}
 function enrichCase(c){const collectionStage=stageOf(c.maxDays),riskLevel=inferRisk(c),aiProgress=inferAiProgress(c),displayMemo=latestMemo(c),repayDate=loadCaseExtras(c.caseId).repayDate||'',nextAction=nextActionOf({...c,riskLevel,repayDate});return{...c,collectionStage,riskLevel,aiProgress,displayMemo,repayDate,nextAction,search:(c.search+' '+[riskLevel,aiProgress,displayMemo,nextAction,STAGE[collectionStage]?.label].filter(Boolean).join(' ')).toLowerCase()}}
 function stageBadge(c){const st=STAGE[c.collectionStage]||STAGE[1];return`<span class="badge ${st.cls}" title="${esc(st.range)}">${st.label}</span>`}
 function riskLevelBadge(c){if(!c.riskLevel)return`<span class="risk-none">—</span>`;const cls=c.riskLevel==='高'?'risk-high':c.riskLevel==='中'?'risk-mid':'risk-low';return`<span class="${cls}">${esc(c.riskLevel)}</span>`}
@@ -198,7 +199,7 @@ function alertOf(days){return ALERTS.find(x=>days>=x.min&&days<=x.max)||ALERTS[0
 function regionOf(office){return OFFICE_REGION_MAP[String(office||'').trim()]||'未歸類'}
 function repairRef(ws){if(ws['!fullref']&&(!ws['!ref']||ws['!ref']==='A1'))ws['!ref']=ws['!fullref'];if(!ws['!ref']||ws['!ref']==='A1'){let minR=1e9,minC=1e9,maxR=0,maxC=0;Object.keys(ws).forEach(k=>{if(k[0]==='!')return;const a=XLSX.utils.decode_cell(k);minR=Math.min(minR,a.r);minC=Math.min(minC,a.c);maxR=Math.max(maxR,a.r);maxC=Math.max(maxC,a.c)});if(maxR<1e9)ws['!ref']=XLSX.utils.encode_range({r:minR,c:minC},{r:maxR,c:maxC})}return ws}
 function extractRows(wb){let found=null;for(const name of wb.SheetNames){const ws=repairRef(wb.Sheets[name]),grid=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});for(let i=0;i<Math.min(grid.length,12);i++){const row=grid[i].map(v=>String(v).trim());if(REQUIRED.every(h=>row.includes(h))){found={name,grid,header:i};break}}if(found)break}if(!found)throw new Error('找不到完整的「欠租1天」欄位，請確認匯入檔案。');const headers=found.grid[found.header].map(v=>String(v).trim()),ix={};headers.forEach((h,i)=>{if(h)ix[h]=i});const lines=[];for(let i=found.header+1;i<found.grid.length;i++){const row=found.grid[i],get=h=>String(row[ix[h]]??'').trim();if(!get('媒合/轉租編號'))continue;const arrears=num(get('欠款金額'));if(arrears<=0)continue;const days=Math.max(1,num(get('欠租天數'))),office=get('代管營業處');lines.push({sourceRow:i+1,status:get('催收狀態'),type:get('委託類型'),caseId:get('媒合/轉租編號'),city:get('物件縣市'),address:get('租賃地址'),days,dueRaw:get('應收款日'),dueDate:parseRoc(get('應收款日')),rent:num(get('租金')),receivable:num(get('應收金額')),paidDate:get('實收款日'),paid:num(get('實收金額')),arrears,tenant:get('承租人'),office,region:regionOf(office),staff:get('代管人員')||'未填代管人員',note:get('催收備註'),leaseStart:colVal(ix,row,['合約起租日','合約起租','起租日','租約起租日']),leaseEnd:colVal(ix,row,['合約迄日','合約迄租日','迄日','租約迄日']),alert:alertOf(days)})}if(!lines.length)throw new Error('檔案中沒有欠款金額大於 0 的有效資料。');return{lines,sheet:found.name,sourceRows:found.grid.length-found.header-1}}
-function buildCases(lines){const map=new Map();lines.forEach(l=>{if(!map.has(l.caseId))map.set(l.caseId,{caseId:l.caseId,region:l.region,office:l.office,staff:l.staff,city:l.city,type:l.type,address:l.address,tenant:l.tenant,leaseStart:'',leaseEnd:'',lines:[],amount:0,maxDays:0,statuses:new Set(),notes:new Set(),firstDue:null});const c=map.get(l.caseId);c.lines.push(l);c.amount+=l.arrears;c.maxDays=Math.max(c.maxDays,l.days);c.statuses.add(l.status);if(l.note)c.notes.add(l.note);if(l.leaseStart&&!c.leaseStart)c.leaseStart=l.leaseStart;if(l.leaseEnd&&!c.leaseEnd)c.leaseEnd=l.leaseEnd;if(l.dueDate&&(!c.firstDue||l.dueDate<c.firstDue))c.firstDue=l.dueDate});return[...map.values()].map(c=>{const base={...c,status:[...c.statuses].join('、'),note:[...c.notes].join('｜'),lineCount:c.lines.length,alert:alertOf(c.maxDays),search:[c.caseId,c.region,c.office,c.staff,c.city,c.type,c.address,c.tenant,c.leaseStart,c.leaseEnd,[...c.statuses],[...c.notes]].flat().join(' ').toLowerCase()};return enrichCase(base)})}
+function buildCases(lines){const map=new Map();lines.forEach(l=>{if(!map.has(l.caseId))map.set(l.caseId,{caseId:l.caseId,region:l.region,office:l.office,staff:l.staff,city:l.city,type:l.type,address:l.address,tenant:l.tenant,leaseStart:'',leaseEnd:'',lines:[],amount:0,maxDays:0,statuses:new Set(),notes:new Set(),firstDue:null});const c=map.get(l.caseId);c.lines.push(l);c.amount+=l.arrears;c.maxDays=Math.max(c.maxDays,l.days);c.statuses.add(l.status);if(l.note)c.notes.add(l.note);if(l.leaseStart&&!c.leaseStart)c.leaseStart=l.leaseStart;if(l.leaseEnd&&!c.leaseEnd)c.leaseEnd=l.leaseEnd;if(l.dueDate&&(!c.firstDue||l.dueDate<c.firstDue))c.firstDue=l.dueDate});return[...map.values()].map(c=>{const note=pickCaseNote(c.lines)||[...c.notes].join('｜');const base={...c,status:[...c.statuses].join('、'),note,lineCount:c.lines.length,alert:alertOf(c.maxDays),search:[c.caseId,c.region,c.office,c.staff,c.city,c.type,c.address,c.tenant,c.leaseStart,c.leaseEnd,[...c.statuses],[...c.notes],note].flat().join(' ').toLowerCase()};return enrichCase(base)})}
 function inferAsOf(lines){const counts=new Map();lines.forEach(l=>{if(!l.dueDate)return;const d=new Date(l.dueDate);d.setDate(d.getDate()+l.days);const k=iso(d);counts.set(k,(counts.get(k)||0)+1)});return[...counts].sort((a,b)=>b[1]-a[1])[0]?.[0]||''}
 function casesListTh(key,label,left=false){const s=state.sort.cases,mark=s.key===key?(s.dir==='asc'?'▲':'▼'):'';return`<th class="sortable ${left?'left':''}" onclick="setSort('cases','${key}')"><span class="th-label">${label}</span><span class="sort">${mark||' '}</span></th>`}
 function casesListHead(interactive){return`<thead><tr><th class="left">風險</th><th class="left">階段</th>${interactive?casesListTh('maxDays','欠租天數'):'<th>欠租天數</th>'}${interactive?casesListTh('amount','欠款'):'<th>欠款</th>'}${interactive?casesListTh('leaseStart','合約起租',true):'<th class="left">合約起租</th>'}${interactive?casesListTh('leaseEnd','迄日',true):'<th class="left">迄日</th>'}${interactive?casesListTh('office','營業處',true):'<th class="left">營業處</th>'}${interactive?casesListTh('staff','代管',true):'<th class="left">代管</th>'}${interactive?casesListTh('tenant','承租人',true):'<th class="left">承租人</th>'}<th class="left">租賃地址</th><th class="left">AI進度</th><th class="left">備註</th><th class="left">操作</th></tr></thead>`}
@@ -247,6 +248,17 @@ function applyPayload(payload,opts={}){
     switchView('overview');
   }
 }
+async function triggerArrearsSync(){
+  const syncUrl=window.ARREARS_SYNC_URL||String(window.ARREARS_DATA_URL||'').replace(/\/data\/latest\.json.*$/,'/sync');
+  if(!syncUrl)return null;
+  const token=window.skyfunArrearsAuth?.getToken?.();
+  const headers={'Content-Type':'application/json'};
+  if(token)headers['X-Skyfun-Session']=token;
+  const res=await fetch(syncUrl,{method:'POST',headers,credentials:'omit'});
+  const json=await res.json().catch(()=>({}));
+  if(!res.ok||json.ok===false)throw new Error(json.error||('HTTP '+res.status));
+  return json;
+}
 async function loadDailyData(showToast=true){
   if(!window.skyfunArrearsAuth?.isReady?.()){if(showToast)toast('請先登入');return;}
   const urls=[window.ARREARS_DATA_URL,window.ARREARS_DATA_URL_FALLBACK].filter(Boolean);
@@ -254,6 +266,17 @@ async function loadDailyData(showToast=true){
   const token=window.skyfunArrearsAuth.getToken();
   const meta=$('sourceMeta');
   const prevSync=state.meta?.lastSyncedAt||'';
+  const refreshBtn=$('refreshBtn');
+  if(refreshBtn&&showToast){refreshBtn.disabled=true;refreshBtn.textContent='同步中…'}
+  if(showToast){
+    if(meta)meta.textContent='正在同步星鴻最新資料（約 1～2 分鐘）…';
+    try{
+      await triggerArrearsSync();
+    }catch(err){
+      console.warn('sync failed',err);
+      toast('星鴻同步失敗：'+(err.message||err)+'（改載入快取）');
+    }
+  }
   if(meta&&showToast)meta.textContent='正在載入雲端資料…';
   let lastErr=null,best=null;
   for(const url of urls){
@@ -268,15 +291,17 @@ async function loadDailyData(showToast=true){
       if(!best||(payload.syncedAt||'')>(best.syncedAt||''))best=payload;
     }catch(err){lastErr=err;console.warn('load failed',url,err);}
   }
+  if(refreshBtn&&showToast){refreshBtn.disabled=false;refreshBtn.textContent='同步星鴻並載入'}
   if(best){
     const changed=!prevSync||prevSync!==(best.syncedAt||'');
-    if(changed||!state.cases.length){
+    if(changed||!state.cases.length||showToast){
       applyPayload(best,{preserveUi:!showToast&&!!state.cases.length});
       buildFilters();
       render();
       if(state.view!=='overview')switchView(state.view);
     }
-    if(showToast)toast(`已載入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆明細`);
+    if(meta)meta.textContent=`星鴻同步：${state.meta.importedAt||'—'} · ${fmt(state.cases.length)} 案`;
+    if(showToast)toast(`已同步 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆明細`);
     else if(changed&&state.cases.length)toast(`資料已更新 · ${fmt(state.cases.length)} 案`);
     return;
   }
