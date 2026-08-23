@@ -1,6 +1,6 @@
 /**
  * 欠租儀表板內建 PDF 產生器（家訪單、存證信函）
- * 邏輯對齊星鴻工具箱 care-visit-notice / lal-generator
+ * 存證信函範本對齊星鴻工具箱 lal-letter-templates.js
  */
 (function (global) {
   'use strict';
@@ -44,15 +44,17 @@
     senderAddr: '108 台北市萬華區中華路一段106號'
   };
 
-  const LAL_TEMPLATES = {
-    'arrears-under-2m': '台端向{{creditor}}承租{{addr}}，{{leaseTerm}}，租金為每月{{rentMonthly}}元，並定期於每月{{rentPayDay}}日給付之。頃查台端應給付{{creditorLabel}}{{owedMonth}}租金，迄未蒙台端依約給付，特此通知，請於文到後七日內給付租金{{owedAmount}}元，以為誠信是禱。',
-    'arrears-2m-1': '臺端向本公司承租{{addr}}，{{leaseTerm}}，租金為每月{{rentMonthly}}元，並定期於每月{{rentPayDay}}日給付之。詎臺端{{arrearsSince}}即未曾依約給付租金，迄今積欠金額已達二個月租金額，共計{{arrearsTotal}}元，未蒙臺端依約給付，為此特以本函催告臺端於函到後三日內付清租金，如逾期仍未清償，本公司將依法終止租賃契約。',
-    'arrears-2m-2': '臺端向本公司承租{{addr}}，{{leaseTerm}}，租金為每月{{rentMonthly}}元，並定期於每月{{rentPayDay}}日給付之。詎臺端{{arrearsSince}}即未曾依約給付租金，迄今已積欠租金達二個月租金額，共計{{arrearsTotal}}元，經本公司{{priorLetter}}定期催告臺端限期清償租金，惟臺端迄仍未履行，特依法以本函終止租約，並以函到之翌日起算三十日為租賃契約終止之時，逾終止日若臺端仍未點交，本公司將依約計算懲罰性違約金並提起訴訟，不另通知，請臺端於終止前與本公司聯繫辦理點交事並遷讓房屋，以免訟累是禱。'
-  };
-
   let fontBytesPromise = null;
   let templateBytesPromise = null;
   let pdfReadyPromise = null;
+
+  function getLetterTemplates() {
+    return global.LAL_LETTER_TEMPLATES || [];
+  }
+
+  function getTemplateById(id) {
+    return getLetterTemplates().find((t) => t.id === id) || null;
+  }
 
   function todayRoc() {
     const d = new Date();
@@ -61,6 +63,10 @@
 
   function safeName(s) {
     return String(s || '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+  }
+
+  function partOrBox(v) {
+    return v ? String(v) : '□';
   }
 
   function resolveContact(office) {
@@ -78,6 +84,60 @@
     m = s.match(/^(\d{2,3})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
     if (m) return { y: m[1], m: String(+m[2]), d: String(+m[3]) };
     return null;
+  }
+
+  function caseDateToRocParts(raw) {
+    if (!raw) return null;
+    if (raw instanceof Date && !isNaN(raw)) {
+      return { y: String(raw.getFullYear() - 1911), m: String(raw.getMonth() + 1), d: String(raw.getDate()) };
+    }
+    return parseDueToRoc(raw);
+  }
+
+  function rocPartsToDate(p) {
+    if (!p) return null;
+    const dt = new Date(parseInt(p.y, 10) + 1911, parseInt(p.m, 10) - 1, parseInt(p.d, 10), 12, 0, 0);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function computeLeaseYearsMonths(startParts, endParts) {
+    const start = rocPartsToDate(startParts);
+    const end = rocPartsToDate(endParts);
+    if (!start || !end) return null;
+    const endInclusive = new Date(end);
+    endInclusive.setDate(endInclusive.getDate() + 1);
+    if (endInclusive.getTime() <= start.getTime()) return null;
+    let years = endInclusive.getFullYear() - start.getFullYear();
+    let months = endInclusive.getMonth() - start.getMonth();
+    if (endInclusive.getDate() < start.getDate()) months--;
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    if (years < 0) return null;
+    return { years: String(years), months: String(months) };
+  }
+
+  function formatLeaseTerm(startParts, endParts) {
+    const term = computeLeaseYearsMonths(startParts, endParts);
+    const ly = term?.years || '';
+    const lm = term?.months || '';
+    if (!startParts && !endParts) return '租期自□年□月□日起至□年□月□日止，計□年□月';
+    const seg = (p) => (p ? p.y + '年' + p.m + '月' + p.d + '日' : '□年□月□日');
+    let s = '租期自' + seg(startParts) + '起至' + seg(endParts) + '止';
+    if (ly || lm) s += '，計' + partOrBox(ly) + '年' + partOrBox(lm) + '月';
+    return s;
+  }
+
+  function formatLeaseTermRoc(startParts, endParts) {
+    if (!startParts && !endParts) return '租期自民國□年□月□日至民國□年□月□日止';
+    const seg = (p) => (p ? '民國' + p.y + '年' + p.m + '月' + p.d + '日' : '民國□年□月□日');
+    return '租期自' + seg(startParts) + '至' + seg(endParts) + '止';
+  }
+
+  function rocDatePhrase(p) {
+    if (!p) return '□年□月□日';
+    return p.y + '年' + p.m + '月' + p.d + '日';
   }
 
   function rentOfCase(c) {
@@ -104,33 +164,59 @@
     return '於' + p.y + '年' + p.m + '月' + p.d + '日以後';
   }
 
-  function pickLalTemplateId(c) {
+  function isEscrowCase(c) {
+    return /代管|代租/.test(String(c.type || ''));
+  }
+
+  function suggestTemplateId(c) {
     const note = c.note || '';
     const rent = rentOfCase(c);
     const twoMonth = rent > 0 && c.amount >= rent * 2;
-    if (/第二封|終止租約|終止租賃|第二封存證/.test(note)) return 'arrears-2m-2';
-    if (twoMonth || c.maxDays >= 60 || /達二個月|積欠.*二/.test(note)) return 'arrears-2m-1';
-    return 'arrears-under-2m';
+    const escrow = isEscrowCase(c);
+
+    if (/第二封|終止租約|終止租賃|第二封存證/.test(note)) {
+      return escrow ? 'escrow-2m-2' : 'arrears-2m-2';
+    }
+    if (twoMonth || c.maxDays >= 60 || /達二個月|積欠.*二/.test(note)) {
+      return escrow ? 'escrow-2m-1' : 'arrears-2m-1';
+    }
+    if (c.maxDays >= 14 && c.maxDays < 45 && !twoMonth) return 'arrears-under-2m';
+    return escrow ? 'escrow-2m-1' : 'arrears-under-2m';
   }
 
-  function buildLalBody(c) {
-    const tplId = pickLalTemplateId(c);
-    const tpl = LAL_TEMPLATES[tplId];
+  function buildLetterTokens(c) {
+    const start = caseDateToRocParts(c.leaseStart);
+    const end = caseDateToRocParts(c.leaseEnd);
     const rent = rentOfCase(c);
-    const tokens = {
-      creditor: '本公司',
+    const creditor = '本公司';
+
+    return {
+      creditor,
       creditorLabel: '',
       addr: c.address || '□',
-      leaseTerm: '租期自□年□月□日起至□年□月□日止，計□年□月',
+      simpleAddr: c.address || '□市□街□號',
+      leaseTerm: formatLeaseTerm(start, end),
+      leaseTermRoc: formatLeaseTermRoc(start, end),
       rentMonthly: rent ? String(rent) : '□',
       rentPayDay: payDayOfCase(c),
       owedMonth: owedMonthPhrase(c),
       owedAmount: String(Math.round(c.amount || 0)),
       arrearsSince: arrearsSincePhrase(c),
       arrearsTotal: String(Math.round(c.amount || 0)),
-      priorLetter: '於□年□月□日以□郵局第□號存證信函'
+      priorLetter: '於□年□月□日以□郵局第□號存證信函',
+      landlordName: '(出租人全名)',
+      propertyOwner: '(房屋所有權人全名)',
+      escrowIntro: '',
+      leaseEndDate: rocDatePhrase(end),
+      inspectDateTime: '□年□月□日□時□分'
     };
-    return tpl.replace(/\{\{(\w+)\}\}/g, (_, key) => (tokens[key] != null ? tokens[key] : ''));
+  }
+
+  function buildLalBody(c, templateId) {
+    const tpl = getTemplateById(templateId) || getTemplateById(suggestTemplateId(c));
+    if (!tpl) throw new Error('找不到存證信函範本');
+    const tokens = buildLetterTokens(c);
+    return tpl.body.replace(/\{\{(\w+)\}\}/g, (_, key) => (tokens[key] != null ? tokens[key] : ''));
   }
 
   function inferVisitFlags(c) {
@@ -397,22 +483,31 @@
     return outDoc.save();
   }
 
-  async function generateLalLetter(c) {
+  async function generateLalLetter(c, templateId) {
     if (!c?.tenant && !c?.address) throw new Error('缺少承租人或地址');
+    const tpl = getTemplateById(templateId);
+    if (!tpl) throw new Error('請選擇存證信函範本');
     const PDFLib = await ensurePdfLibs();
     const contact = resolveContact(c.office);
-    const body = buildLalBody(c);
+    const body = buildLalBody(c, templateId);
     const senders = [{ name: '星鴻股份有限公司', addr: contact.senderAddr }];
     const receivers = [{ name: c.tenant || '', addr: c.address || '' }];
     const [fontBytes, templateBytes] = await Promise.all([getFontBytes(), getTemplateBytes()]);
     const overlayBytes = await buildLalOverlay(PDFLib, fontBytes, senders, receivers, [], body);
     const finalBytes = await mergeLalWithTemplate(PDFLib, overlayBytes, templateBytes);
     const d = new Date();
-    downloadPdf(finalBytes, `存證信函_${safeName(c.tenant || c.caseId)}_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.pdf`);
+    const tplShort = String(tpl.title || tpl.id).replace(/[\\/:*?"<>|【】]/g, '').slice(0, 24);
+    downloadPdf(finalBytes, `存證信函_${safeName(c.tenant || c.caseId)}_${tplShort}_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.pdf`);
   }
 
   global.SkyfunDocGen = {
     generateVisitNotice,
-    generateLalLetter
+    generateLalLetter,
+    getLetterTemplates,
+    getTemplateById,
+    suggestTemplateId,
+    buildLalBody,
+    buildLetterTokens,
+    formatLeaseTerm: (c) => formatLeaseTerm(caseDateToRocParts(c.leaseStart), caseDateToRocParts(c.leaseEnd))
   };
 })(window);
