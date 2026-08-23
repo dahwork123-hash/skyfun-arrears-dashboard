@@ -3,3 +3,5 @@ window.ARREARS_DATA_URL = './data/latest.json';
 window.ARREARS_DATA_URL_FALLBACK = 'https://skyfun-arrears-rpa.dahwork123.workers.dev/data/latest.json';
 /** 開啟頁面時每隔幾分鐘自動重新載入（0 = 關閉） */
 window.AUTO_REFRESH_MINUTES = 15;
+/** 家訪單／存證信函產生器（星鴻工具箱 GitHub Pages） */
+window.TOOLBOX_PAGES_URL = 'https://dahwork123-hash.github.io/skyfun-toolbox-pages/';
