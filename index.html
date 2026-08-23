@@ -6,6 +6,9 @@
   <title>包租呆帳遲繳追蹤系統</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./js/supabase-config.js"></script>
+  <script src="./js/arrears-auth.js"></script>
   <script src="./config.js"></script>
   <script src="./js/doc-generators.js"></script>
   <style>
@@ -23,9 +26,29 @@
     .row-actions{display:flex;flex-direction:column;gap:5px;min-width:88px}.btn-sm{height:28px;padding:0 8px;font-size:11px;border-radius:7px}.btn-visit{background:#fff3e6;border-color:#fdba74;color:#c2410c}.btn-visit:hover{border-color:#fb923c;background:#ffedd5}.btn-letter{background:#f5f3ff;border-color:#c4b5fd;color:#6d28d9}.btn-letter:hover{border-color:#a78bfa;background:#ede9fe}
     .cases-list-table{min-width:1680px}.cases-list-table th:nth-child(1){width:52px}.cases-list-table th:nth-child(2){width:88px}.cases-list-table th:nth-child(3){width:72px}.cases-list-table th:nth-child(4){width:78px}.cases-list-table th:nth-child(5){width:100px}.cases-list-table th:nth-child(6){width:110px}.cases-list-table th:nth-child(7){width:100px}.cases-list-table th:nth-child(8){width:100px}.cases-list-table th:nth-child(9){width:220px}.cases-list-table th:nth-child(10){width:200px}.cases-list-table th:nth-child(11){width:220px}.cases-list-table th:nth-child(12){width:96px}
     .modal.ai-wide .modal-card{width:min(720px,96vw)}.ai-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:12px;margin:8px 0 12px;padding:10px 12px;background:#f6f8fb;border:1px solid var(--line);border-radius:9px}.memo-editor{width:100%;min-height:120px;border:1px solid var(--line);border-radius:9px;padding:10px;font:inherit;line-height:1.6;resize:vertical}
+    body.arrears-auth-pending .app{display:none}.arrears-auth-gate{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:24px;background:radial-gradient(120% 80% at 50% -10%,#1e3a5f 0%,#0f172a 42%,#020617 100%)}.arrears-auth-gate.hidden{display:none}.arrears-auth-card{width:min(22rem,94vw);padding:1.65rem 1.4rem 1.25rem;border-radius:16px;border:1px solid rgba(147,197,253,.22);background:linear-gradient(180deg,#fff 0%,#f8fafc 100%);box-shadow:0 28px 70px rgba(2,6,23,.5)}.arrears-auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:14px}.arrears-auth-mark{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-weight:900;font-size:1.15rem;color:#ecfdf5;background:linear-gradient(145deg,#1d4ed8,#1e40af);box-shadow:0 8px 18px rgba(29,78,216,.35)}.arrears-auth-card h2{margin:0;font-size:1.28rem;color:#0f172a}.arrears-auth-tag{margin:.15rem 0 0;font-size:.72rem;font-weight:700;letter-spacing:.08em;color:#1d4ed8}.arrears-auth-hint{margin:0 0 12px;color:#64748b;font-size:12px;line-height:1.65}.arrears-auth-card label{display:block;margin-top:.7rem;font-size:12px;font-weight:800;color:#334155}.arrears-auth-card input{width:100%;margin-top:4px;border:1.5px solid #cbd5e1;border-radius:.8rem;padding:.62rem .75rem;font:inherit}.arrears-auth-card input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}.arrears-auth-card button[type=button]{width:100%;margin-top:1.1rem;border:0;border-radius:.9rem;padding:.72rem;font:inherit;font-weight:800;color:#fff;background:linear-gradient(135deg,#2563eb,#1d4ed8);cursor:pointer}.arrears-auth-card button[type=button]:disabled{opacity:.65;cursor:wait}#arrears-auth-msg{margin-top:10px;font-size:12px;color:#64748b;text-align:center}#arrears-auth-msg.is-error{color:#dc2626;font-weight:700}.arrears-auth-foot{margin-top:12px;font-size:11px;color:#94a3b8;text-align:center;line-height:1.6}.arrears-auth-foot a{color:#2563eb}
   </style>
 </head>
 <body>
+<div id="arrears-auth-gate" class="arrears-auth-gate">
+  <div class="arrears-auth-card">
+    <div class="arrears-auth-brand">
+      <span class="arrears-auth-mark" aria-hidden="true">鎖</span>
+      <div>
+        <h2>包租呆帳追蹤系統</h2>
+        <p class="arrears-auth-tag">內部登入</p>
+      </div>
+    </div>
+    <p class="arrears-auth-hint">請使用星鴻工具箱帳號登入。未核准帳號請先至工具箱申請，由管理員核准後方可進入。</p>
+    <label for="arrears-auth-username">帳號</label>
+    <input id="arrears-auth-username" type="text" maxlength="40" autocomplete="username" placeholder="工具箱帳號">
+    <label for="arrears-auth-password">密碼</label>
+    <input id="arrears-auth-password" type="password" maxlength="72" autocomplete="current-password" placeholder="密碼">
+    <button type="button" id="arrears-auth-submit">進入系統</button>
+    <p id="arrears-auth-msg" style="display:none"></p>
+    <p class="arrears-auth-foot">與 <a href="https://dahwork123-hash.github.io/skyfun-toolbox-pages/" target="_blank" rel="noopener">星鴻工具箱</a> 共用帳號<br>資料僅供內部追蹤，請勿外流</p>
+  </div>
+</div>
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><small>James A++</small><h1>包租呆帳遲繳<br>追蹤系統</h1><p>全國單一口徑・每日全量更新</p></div>
@@ -38,7 +61,7 @@
     <div class="privacy">每日由 Cloudflare RPA 自星鴻系統同步；亦可手動匯入 Excel 覆蓋。<br>資料僅供內部追蹤，請勿外流。</div>
   </aside>
   <main class="main">
-    <header class="topbar"><div class="title"><h2 id="pageTitle">全國呆帳營運總覽</h2><p id="sourceMeta">正在載入雲端資料…</p></div><div class="spacer"></div><button class="btn" id="refreshBtn" onclick="loadDailyData(true)">重新載入</button>&nbsp;<button class="btn" id="exportBtn" style="display:none" onclick="exportTracking()">匯出追蹤 Excel</button>&nbsp;<button class="btn primary" onclick="document.getElementById('fileInput').click()">匯入 Excel 覆蓋</button></header>
+    <header class="topbar"><div class="title"><h2 id="pageTitle">全國呆帳營運總覽</h2><p id="sourceMeta">請先登入…</p></div><div class="spacer"></div><span id="authUserLabel" style="display:none;font-size:12px;color:var(--muted);margin-right:8px;font-weight:700"></span><button class="btn" id="authLogoutBtn" style="display:none">登出</button>&nbsp;<button class="btn" id="refreshBtn" onclick="loadDailyData(true)">重新載入</button>&nbsp;<button class="btn" id="exportBtn" style="display:none" onclick="exportTracking()">匯出追蹤 Excel</button>&nbsp;<button class="btn primary" onclick="document.getElementById('fileInput').click()">匯入 Excel 覆蓋</button></header>
     <div class="content">
       <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>系統會自動載入 Cloudflare RPA 每日同步的星鴻「欠租1天」資料。若雲端尚未就緒，可手動匯入公司 Excel。</p><button class="btn primary" onclick="loadDailyData(true)">重新載入雲端資料</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 雲端同步</span><span>每 15 分鐘自動更新</span></div></div></section>
       <section class="workspace" id="workspace">
@@ -139,19 +162,20 @@ function applyPayload(payload,opts={}){
   }
 }
 async function loadDailyData(showToast=true){
+  if(!window.skyfunArrearsAuth?.isReady?.()){if(showToast)toast('請先登入');return;}
   const urls=[window.ARREARS_DATA_URL,window.ARREARS_DATA_URL_FALLBACK].filter(Boolean);
   if(!urls.length){if(showToast)toast('未設定 ARREARS_DATA_URL（config.js）');return;}
+  const token=window.skyfunArrearsAuth.getToken();
   const meta=$('sourceMeta');
   const prevSync=state.meta?.lastSyncedAt||'';
   if(meta&&showToast)meta.textContent='正在載入雲端資料…';
   let lastErr=null,best=null;
-  const readToken=String(window.ARREARS_READ_TOKEN||'').trim();
   for(const url of urls){
     try{
       const headers={};
-      if(readToken)headers['Authorization']='Bearer '+readToken;
+      if(token)headers['X-Skyfun-Session']=token;
       const res=await fetch(url+(url.includes('?')?'&':'?')+'t='+Date.now(),{headers,credentials:'omit'});
-      if(res.status===401||res.status===403)throw new Error('API 拒絕存取，請確認 Worker 防火牆設定');
+      if(res.status===401||res.status===403)throw new Error('登入已失效或無權限，請重新登入');
       if(!res.ok)throw new Error('HTTP '+res.status);
       const payload=await res.json();
       if(payload.ok===false)throw new Error(payload.error||'API 回傳失敗');
@@ -228,7 +252,8 @@ function switchView(view){state.view=view;document.querySelectorAll('.view').for
 document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
 function openCases(){state.view='cases';switchView('cases')}function setExactAlert(key){state.filters.alert=[key];state.page=1;buildFilters();switchView('cases')}function drillAlert(min){state.filters.alert=ALERTS.filter(a=>a.min>=+min).map(a=>a.key);state.page=1;buildFilters();switchView('cases')}function drillRegion(v){state.filters.region=[v];state.filters.office=[];state.filters.staff=[];state.page=1;buildFilters();switchView('organization')}function drillOffice(v){state.filters.office=[v];state.filters.staff=[];state.page=1;buildFilters();switchView('cases')}function openNoticeCases(o,s){state.filters.office=[o];state.filters.staff=[s];state.page=1;buildFilters();switchView('cases')}
 function exportTracking(){if(typeof XLSX==='undefined'||!state.cases.length)return toast('請先載入資料');const cases=filteredCases(),caseRows=cases.map(c=>({'管理區域':c.region,'營業處':c.office,'代管人員':c.staff,'風險程度':c.riskLevel||'','催收階段':STAGE[c.collectionStage]?.label||'','警示級距':c.alert.label,'最長欠租天數':c.maxDays,'AI進度':c.aiProgress||'','下一步行動':c.nextAction||'','媒合/轉租編號':c.caseId,'物件縣市':c.city,'租賃地址':c.address,'承租人':c.tenant,'委託類型':c.type,'催收狀態':c.status,'應收明細數':c.lineCount,'欠款金額':c.amount,'催收備註':c.note,'本地追蹤備註':loadCaseExtras(c.caseId).localMemo||''})),ids=new Set(cases.map(c=>c.caseId)),lineRows=state.lines.filter(l=>ids.has(l.caseId)).map(l=>({'管理區域':l.region,'營業處':l.office,'代管人員':l.staff,'警示級距':l.alert.label,'催收狀態':l.status,'委託類型':l.type,'媒合/轉租編號':l.caseId,'物件縣市':l.city,'租賃地址':l.address,'欠租天數':l.days,'應收款日':l.dueRaw,'租金':l.rent,'應收金額':l.receivable,'實收款日':l.paidDate,'實收金額':l.paid,'欠款金額':l.arrears,'承租人':l.tenant,'催收備註':l.note})),wb=XLSX.utils.book_new(),ws1=XLSX.utils.json_to_sheet(caseRows),ws2=XLSX.utils.json_to_sheet(lineRows);ws1['!autofilter']={ref:ws1['!ref']};ws2['!autofilter']={ref:ws2['!ref']};ws1['!cols']=Object.keys(caseRows[0]||{}).map(k=>({wch:Math.min(38,Math.max(10,k.length*2+2))}));ws2['!cols']=Object.keys(lineRows[0]||{}).map(k=>({wch:Math.min(38,Math.max(10,k.length*2+2))}));XLSX.utils.book_append_sheet(wb,ws1,'追蹤案件');XLSX.utils.book_append_sheet(wb,ws2,'應收明細');XLSX.writeFile(wb,`包租呆帳追蹤_${(state.meta.asOf||iso(new Date())).replace(/-/g,'')}.xlsx`);toast('已匯出目前查詢範圍的追蹤 Excel')}
-document.addEventListener('DOMContentLoaded',()=>{loadDailyData(false);startAutoRefresh();scheduleVisibilityRefresh();document.querySelectorAll('#memoModal [data-fill]').forEach(btn=>{btn.addEventListener('click',()=>{const ta=$('memoEditorInput');if(!ta)return;const prefix=`[業務 ${new Date().getMonth()+1}/${new Date().getDate()}] `;ta.value=(ta.value?ta.value+'\n':'')+prefix+btn.getAttribute('data-fill')})})});
+document.addEventListener('skyfun-auth-ready',()=>{loadDailyData(false);startAutoRefresh();scheduleVisibilityRefresh()});
+document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('#memoModal [data-fill]').forEach(btn=>{btn.addEventListener('click',()=>{const ta=$('memoEditorInput');if(!ta)return;const prefix=`[業務 ${new Date().getMonth()+1}/${new Date().getDate()}] `;ta.value=(ta.value?ta.value+'\n':'')+prefix+btn.getAttribute('data-fill')})});if(window.skyfunArrearsAuth?.isReady?.()){loadDailyData(false);startAutoRefresh();scheduleVisibilityRefresh()}});
 </script>
 </body>
 </html>
