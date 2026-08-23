@@ -32,7 +32,7 @@
   <main class="main">
     <header class="topbar"><div class="title"><h2 id="pageTitle">全國呆帳營運總覽</h2><p id="sourceMeta">正在載入雲端資料…</p></div><div class="spacer"></div><button class="btn" id="refreshBtn" onclick="loadDailyData(true)">重新載入</button>&nbsp;<button class="btn" id="exportBtn" style="display:none" onclick="exportTracking()">匯出追蹤 Excel</button>&nbsp;<button class="btn primary" onclick="document.getElementById('fileInput').click()">匯入 Excel 覆蓋</button></header>
     <div class="content">
-      <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>系統會自動載入 Cloudflare RPA 每日同步的星鴻「欠租1天」資料。若雲端尚未就緒，可手動匯入公司 Excel。</p><button class="btn primary" onclick="loadDailyData(true)">重新載入雲端資料</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 更新</span></div></div></section>
+      <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>系統會自動載入 Cloudflare RPA 每日同步的星鴻「欠租1天」資料。若雲端尚未就緒，可手動匯入公司 Excel。</p><button class="btn primary" onclick="loadDailyData(true)">重新載入雲端資料</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 雲端同步</span><span>每 15 分鐘自動更新</span></div></div></section>
       <section class="workspace" id="workspace">
         <aside class="filters"><div class="filter-head"><h3>查詢條件</h3><div class="spacer"></div><button class="link-btn" onclick="clearFilters()">清除全部</button></div><input class="search" id="query" placeholder="編號／地址／承租人／備註" oninput="state.filters.q=this.value.trim();state.page=1;render()"><div id="filterGroups"></div></aside>
         <div class="stage">
@@ -68,7 +68,7 @@ function repairRef(ws){if(ws['!fullref']&&(!ws['!ref']||ws['!ref']==='A1'))ws['!
 function extractRows(wb){let found=null;for(const name of wb.SheetNames){const ws=repairRef(wb.Sheets[name]),grid=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});for(let i=0;i<Math.min(grid.length,12);i++){const row=grid[i].map(v=>String(v).trim());if(REQUIRED.every(h=>row.includes(h))){found={name,grid,header:i};break}}if(found)break}if(!found)throw new Error('找不到完整的「欠租1天」欄位，請確認匯入檔案。');const headers=found.grid[found.header].map(v=>String(v).trim()),ix={};headers.forEach((h,i)=>{if(h)ix[h]=i});const lines=[];for(let i=found.header+1;i<found.grid.length;i++){const row=found.grid[i],get=h=>String(row[ix[h]]??'').trim();if(!get('媒合/轉租編號'))continue;const arrears=num(get('欠款金額'));if(arrears<=0)continue;const days=Math.max(1,num(get('欠租天數'))),office=get('代管營業處');lines.push({sourceRow:i+1,status:get('催收狀態'),type:get('委託類型'),caseId:get('媒合/轉租編號'),city:get('物件縣市'),address:get('租賃地址'),days,dueRaw:get('應收款日'),dueDate:parseRoc(get('應收款日')),rent:num(get('租金')),receivable:num(get('應收金額')),paidDate:get('實收款日'),paid:num(get('實收金額')),arrears,tenant:get('承租人'),office,region:regionOf(office),staff:get('代管人員')||'未填代管人員',note:get('催收備註'),alert:alertOf(days)})}if(!lines.length)throw new Error('檔案中沒有欠款金額大於 0 的有效資料。');return{lines,sheet:found.name,sourceRows:found.grid.length-found.header-1}}
 function buildCases(lines){const map=new Map();lines.forEach(l=>{if(!map.has(l.caseId))map.set(l.caseId,{caseId:l.caseId,region:l.region,office:l.office,staff:l.staff,city:l.city,type:l.type,address:l.address,tenant:l.tenant,lines:[],amount:0,maxDays:0,statuses:new Set(),notes:new Set(),firstDue:null});const c=map.get(l.caseId);c.lines.push(l);c.amount+=l.arrears;c.maxDays=Math.max(c.maxDays,l.days);c.statuses.add(l.status);if(l.note)c.notes.add(l.note);if(l.dueDate&&(!c.firstDue||l.dueDate<c.firstDue))c.firstDue=l.dueDate});return[...map.values()].map(c=>({...c,status:[...c.statuses].join('、'),note:[...c.notes].join('｜'),lineCount:c.lines.length,alert:alertOf(c.maxDays),search:[c.caseId,c.region,c.office,c.staff,c.city,c.type,c.address,c.tenant,[...c.statuses],[...c.notes]].flat().join(' ').toLowerCase()}))}
 function inferAsOf(lines){const counts=new Map();lines.forEach(l=>{if(!l.dueDate)return;const d=new Date(l.dueDate);d.setDate(d.getDate()+l.days);const k=iso(d);counts.set(k,(counts.get(k)||0)+1)});return[...counts].sort((a,b)=>b[1]-a[1])[0]?.[0]||''}
-function applyPayload(payload){
+function applyPayload(payload,opts={}){
   const lines=(payload.lines||[]).map(l=>{
     const days=Math.max(1,num(l.days));
     return {
@@ -87,23 +87,29 @@ function applyPayload(payload){
     sourceRows:payload.sourceRows||lines.length,
     validLines:payload.validLines||lines.length,
     asOf:payload.asOf||inferAsOf(lines),
-    importedAt:payload.syncedAt?new Date(payload.syncedAt).toLocaleString('zh-TW'):new Date().toLocaleString('zh-TW')
+    importedAt:payload.syncedAt?new Date(payload.syncedAt).toLocaleString('zh-TW'):new Date().toLocaleString('zh-TW'),
+    lastSyncedAt:payload.syncedAt||''
   };
-  state.filters=DEFAULT_FILTERS();
-  state.view='overview';
-  state.page=1;
-  $('query').value='';
+  if(!opts.preserveUi){
+    state.filters=DEFAULT_FILTERS();
+    state.view='overview';
+    state.page=1;
+    $('query').value='';
+  }
   $('emptyState').style.display='none';
   $('workspace').classList.add('ready');
   $('exportBtn').style.display='inline-block';
-  buildFilters();
-  switchView('overview');
+  if(!opts.preserveUi){
+    buildFilters();
+    switchView('overview');
+  }
 }
 async function loadDailyData(showToast=true){
   const urls=[window.ARREARS_DATA_URL,window.ARREARS_DATA_URL_FALLBACK].filter(Boolean);
   if(!urls.length){if(showToast)toast('未設定 ARREARS_DATA_URL（config.js）');return;}
   const meta=$('sourceMeta');
-  if(meta)meta.textContent='正在載入雲端資料…';
+  const prevSync=state.meta?.lastSyncedAt||'';
+  if(meta&&showToast)meta.textContent='正在載入雲端資料…';
   let lastErr=null;
   for(const url of urls){
     try{
@@ -111,13 +117,32 @@ async function loadDailyData(showToast=true){
       if(!res.ok)throw new Error('HTTP '+res.status);
       const payload=await res.json();
       if(payload.ok===false)throw new Error(payload.error||'API 回傳失敗');
-      applyPayload(payload);
+      const changed=!prevSync||prevSync!==(payload.syncedAt||'');
+      if(changed||!state.cases.length){
+        applyPayload(payload,{preserveUi:!showToast&&!!state.cases.length});
+        buildFilters();
+        render();
+        if(state.view!=='overview')switchView(state.view);
+      }
       if(showToast)toast(`已載入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆明細`);
+      else if(changed&&state.cases.length)toast(`資料已更新 · ${fmt(state.cases.length)} 案`);
       return;
     }catch(err){lastErr=err;console.warn('load failed',url,err);}
   }
-  if(meta)meta.textContent='雲端資料載入失敗，可手動匯入 Excel';
+  if(meta&&!state.cases.length)meta.textContent='雲端資料載入失敗，可手動匯入 Excel';
   if(showToast)toast((lastErr&&lastErr.message)||'無法載入雲端資料');
+}
+let autoRefreshTimer=null;
+function startAutoRefresh(){
+  const mins=Number(window.AUTO_REFRESH_MINUTES||0);
+  if(autoRefreshTimer){clearInterval(autoRefreshTimer);autoRefreshTimer=null}
+  if(!mins||mins<1)return;
+  autoRefreshTimer=setInterval(()=>loadDailyData(false),mins*60*1000);
+}
+function scheduleVisibilityRefresh(){
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible')loadDailyData(false);
+  });
 }
 function processFile(file){if(typeof XLSX==='undefined')return toast('Excel 解析函式庫未載入，請確認網路連線。');const reader=new FileReader();reader.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array',cellDates:true}),r=extractRows(wb);state.lines=r.lines;state.cases=buildCases(r.lines);state.meta={file:file.name,sheet:r.sheet,sourceRows:r.sourceRows,validLines:r.lines.length,asOf:inferAsOf(r.lines),importedAt:new Date().toLocaleString('zh-TW')};state.filters=DEFAULT_FILTERS();state.view='overview';state.page=1;$('query').value='';$('emptyState').style.display='none';$('workspace').classList.add('ready');$('exportBtn').style.display='inline-block';buildFilters();switchView('overview');toast(`已匯入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆應收明細，已套用預設「轉租」`)}catch(err){console.error(err);toast(err.message)}};reader.onerror=()=>toast('檔案讀取失敗，請確認 Excel 未被鎖定。');reader.readAsArrayBuffer(file)}
 $('fileInput').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)processFile(f);e.target.value='' });
@@ -136,7 +161,7 @@ function sortRows(rows,table){const s=state.sort[table],mul=s.dir==='asc'?1:-1;r
 function setSort(table,key){const s=state.sort[table];state.sort[table]=s.key===key?{key,dir:s.dir==='asc'?'desc':'asc'}:{key,dir:['name','region','office','staff','caseId'].includes(key)?'asc':'desc'};render()}
 function th(table,key,label,left=false){const s=state.sort[table],mark=s.key===key?(s.dir==='asc'?'▲':'▼'):'';return`<th class="sortable ${left?'left':''}" onclick="setSort('${table}','${key}')">${label}<span class="sort">${mark}</span></th>`}
 function risk(c){return`<span class="risk ${c.alert.cls}">${c.alert.short}</span>`}
-function render(){if(!state.cases.length)return;const rows=filteredCases();$('scopeBar').innerHTML=`<b>◎</b><span>${esc(scopeText(rows))}｜${fmt(rows.length)} 案／${fmt(sum(rows,'lineCount'))} 筆明細／${moneyFmt(sum(rows))}</span>`;$('sourceMeta').textContent=`資料基準 ${state.meta.asOf||'—'}｜${state.meta.file}｜匯入 ${state.meta.importedAt}`;renderOverview(rows);renderOrganization(rows);renderNotices(rows);renderCases(rows)}
+function render(){if(!state.cases.length)return;const rows=filteredCases();const mins=Number(window.AUTO_REFRESH_MINUTES||0);const autoHint=mins>0?`｜每 ${mins} 分鐘自動更新`:'';$('scopeBar').innerHTML=`<b>◎</b><span>${esc(scopeText(rows))}｜${fmt(rows.length)} 案／${fmt(sum(rows,'lineCount'))} 筆明細／${moneyFmt(sum(rows))}</span>`;$('sourceMeta').textContent=`資料基準 ${state.meta.asOf||'—'}｜${state.meta.file}｜同步 ${state.meta.importedAt}${autoHint}`;renderOverview(rows);renderOrganization(rows);renderNotices(rows);renderCases(rows)}
 function renderOverview(rows){const a7=rows.filter(c=>c.maxDays>=7),a14=rows.filter(c=>c.maxDays>=14),a30=rows.filter(c=>c.maxDays>=30),regions=group(rows,'region').sort((a,b)=>b.amount-a.amount),max=Math.max(1,...regions.map(x=>x.amount)),priority=[...rows].sort((a,b)=>b.maxDays-a.maxDays||b.amount-a.amount).slice(0,10);$('overview').innerHTML=`<div class="kpis"><article class="kpi" style="--accent:var(--blue)" onclick="openCases()"><div class="k-label">有效呆帳案件</div><div class="k-value">${fmt(rows.length)}</div><div class="k-sub">${fmt(sum(rows,'lineCount'))} 筆應收明細</div></article><article class="kpi" style="--accent:var(--teal)" onclick="openCases()"><div class="k-label">欠款總金額</div><div class="k-value">${moneyFmt(sum(rows))}</div><div class="k-sub">依公司檔「欠款金額」</div></article><article class="kpi" style="--accent:var(--amber)" onclick="drillAlert('7')"><div class="k-label">7天以上案件</div><div class="k-value">${fmt(a7.length)}</div><div class="k-sub">${moneyFmt(sum(a7))}</div></article><article class="kpi" style="--accent:var(--orange)" onclick="drillAlert('14')"><div class="k-label">14天以上案件</div><div class="k-value">${fmt(a14.length)}</div><div class="k-sub">${moneyFmt(sum(a14))}</div></article><article class="kpi" style="--accent:var(--red)" onclick="drillAlert('30')"><div class="k-label">30天以上案件</div><div class="k-value">${fmt(a30.length)}</div><div class="k-sub">${moneyFmt(sum(a30))}</div></article></div><div class="grid-2"><article class="panel"><div class="panel-hd"><div><h3>遲繳警示帶</h3><p>點擊級距查看案件，案件以最長欠租天數分類</p></div></div><div class="panel-body"><div class="alert-grid">${ALERTS.map((a,i)=>{const x=rows.filter(c=>c.alert.key===a.key);return`<div class="alert-card a${a.key}" onclick="setExactAlert('${a.key}')"><small>${a.label}</small><b>${fmt(x.length)} 案</b><span>${moneyFmt(sum(x))}</span></div>`}).join('')}</div></div></article><article class="panel"><div class="panel-hd"><div><h3>區域曝險概況</h3><p>依欠款金額由高到低</p></div></div><div class="panel-body"><div class="region-list">${regions.map(r=>`<div class="region-item" onclick="drillRegion('${esc(r.name)}')"><div><b>${esc(r.name)}</b><small>${fmt(r.cases)} 案｜30天+ ${fmt(r.over30)} 案</small><div class="bar"><i style="width:${r.amount/max*100}%"></i></div></div><strong>${moneyFmt(r.amount)}</strong></div>`).join('')}</div></div></article></div><article class="panel"><div class="panel-hd"><div><h3>營運長優先追蹤</h3><p>依最長欠租天數、欠款金額排序；點案件查看完整應收明細</p></div><div class="spacer"></div><button class="btn" onclick="switchView('notices')">開啟通知清單</button></div><div class="table-wrap"><table class="data-table"><thead><tr><th class="left">警示</th><th>欠租天數</th><th class="left">營業處</th><th class="left">代管人員</th><th class="left">承租人</th><th>欠款金額</th><th class="left">租賃地址</th><th>應收筆數</th></tr></thead><tbody>${priority.map(c=>`<tr class="clickable" onclick="showDetail('${esc(c.caseId)}')"><td class="left">${risk(c)}</td><td>${fmt(c.maxDays)} 天</td><td class="left"><b>${esc(c.office)}</b></td><td class="left">${esc(c.staff)}</td><td class="left">${esc(c.tenant||'—')}</td><td class="amount down">${moneyFmt(c.amount)}</td><td class="left">${esc(c.address)}</td><td>${fmt(c.lineCount)}</td></tr>`).join('')}</tbody></table></div></article>`}
 function renderOrganization(rows){const regions=sortRows(group(rows,'region'),'region'),offices=sortRows(group(rows,'office'),'office');$('organization').innerHTML=`<div class="view-head"><div><h3>區域與營業處狀況</h3><p>金額、案件數、30天警示同時比較，點擊資料列下鑽</p></div><div class="spacer"></div><div class="summary-strip"><span>${regions.length} 個管理區域</span><span>${offices.length} 個營業處／獨立單位</span></div></div><article class="panel"><div class="panel-hd"><h3>管理區域</h3></div>${orgTable(regions,'region')}</article><br><article class="panel"><div class="panel-hd"><h3>營業處</h3></div>${orgTable(offices,'office')}</article>`}
 function orgTable(rows,table){return`<div class="table-wrap"><table class="data-table"><thead><tr>${th(table,'name',table==='region'?'管理區域':'營業處',true)}${th(table,'cases','案件數')}${th(table,'lines','應收筆數')}${th(table,'amount','欠款金額')}${th(table,'over7','7天+')}${th(table,'over14','14天+')}${th(table,'over30','30天+')}${th(table,'maxDays','最長欠租')}</tr></thead><tbody>${rows.map(r=>`<tr class="clickable" onclick="${table==='region'?`drillRegion('${esc(r.name)}')`:`drillOffice('${esc(r.name)}')`}"><td class="left"><b>${esc(r.name)}</b>${table==='office'?`<br><small>${esc(r.region)}</small>`:''}</td><td>${fmt(r.cases)}</td><td>${fmt(r.lines)}</td><td class="amount">${moneyFmt(r.amount)}</td><td>${fmt(r.over7)}</td><td>${fmt(r.over14)}</td><td class="down"><b>${fmt(r.over30)}</b></td><td>${fmt(r.maxDays)} 天</td></tr>`).join('')}</tbody></table></div>`}
@@ -162,7 +187,7 @@ function switchView(view){state.view=view;document.querySelectorAll('.view').for
 document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
 function openCases(){state.view='cases';switchView('cases')}function setExactAlert(key){state.filters.alert=[key];state.page=1;buildFilters();switchView('cases')}function drillAlert(min){state.filters.alert=ALERTS.filter(a=>a.min>=+min).map(a=>a.key);state.page=1;buildFilters();switchView('cases')}function drillRegion(v){state.filters.region=[v];state.filters.office=[];state.filters.staff=[];state.page=1;buildFilters();switchView('organization')}function drillOffice(v){state.filters.office=[v];state.filters.staff=[];state.page=1;buildFilters();switchView('cases')}function openNoticeCases(o,s){state.filters.office=[o];state.filters.staff=[s];state.page=1;buildFilters();switchView('cases')}
 function exportTracking(){if(typeof XLSX==='undefined'||!state.cases.length)return toast('請先載入資料');const cases=filteredCases(),caseRows=cases.map(c=>({'管理區域':c.region,'營業處':c.office,'代管人員':c.staff,'警示級距':c.alert.label,'最長欠租天數':c.maxDays,'媒合/轉租編號':c.caseId,'物件縣市':c.city,'租賃地址':c.address,'承租人':c.tenant,'委託類型':c.type,'催收狀態':c.status,'應收明細數':c.lineCount,'欠款金額':c.amount,'催收備註':c.note})),ids=new Set(cases.map(c=>c.caseId)),lineRows=state.lines.filter(l=>ids.has(l.caseId)).map(l=>({'管理區域':l.region,'營業處':l.office,'代管人員':l.staff,'警示級距':l.alert.label,'催收狀態':l.status,'委託類型':l.type,'媒合/轉租編號':l.caseId,'物件縣市':l.city,'租賃地址':l.address,'欠租天數':l.days,'應收款日':l.dueRaw,'租金':l.rent,'應收金額':l.receivable,'實收款日':l.paidDate,'實收金額':l.paid,'欠款金額':l.arrears,'承租人':l.tenant,'催收備註':l.note})),wb=XLSX.utils.book_new(),ws1=XLSX.utils.json_to_sheet(caseRows),ws2=XLSX.utils.json_to_sheet(lineRows);ws1['!autofilter']={ref:ws1['!ref']};ws2['!autofilter']={ref:ws2['!ref']};ws1['!cols']=Object.keys(caseRows[0]||{}).map(k=>({wch:Math.min(38,Math.max(10,k.length*2+2))}));ws2['!cols']=Object.keys(lineRows[0]||{}).map(k=>({wch:Math.min(38,Math.max(10,k.length*2+2))}));XLSX.utils.book_append_sheet(wb,ws1,'追蹤案件');XLSX.utils.book_append_sheet(wb,ws2,'應收明細');XLSX.writeFile(wb,`包租呆帳追蹤_${(state.meta.asOf||iso(new Date())).replace(/-/g,'')}.xlsx`);toast('已匯出目前查詢範圍的追蹤 Excel')}
-document.addEventListener('DOMContentLoaded',()=>loadDailyData(false));
+document.addEventListener('DOMContentLoaded',()=>{loadDailyData(false);startAutoRefresh();scheduleVisibilityRefresh()});
 </script>
 </body>
 </html>
