@@ -196,7 +196,9 @@
 
   function renderTestDialCard(esc) {
     const saved = global.state.ai.testDial || {};
-    return `<article class="settings-card" style="grid-column:span 2"><h4>測試外撥（手動輸入）</h4><p class="field-hint">不需媒合編號。請填寫<strong>承租人、租賃地址、欠款金額</strong>，AI 會確認姓名與地址並說出欠款。</p><div class="test-dial-grid"><div class="field"><label>房客手機</label><input id="aiTestPhone" value="${esc(saved.phone || '')}" placeholder="09xxxxxxxx"></div><div class="field"><label>承租人</label><input id="aiTestTenant" value="${esc(saved.tenant || '')}" placeholder="房客姓名"></div><div class="field"><label>欠款金額</label><input id="aiTestAmount" type="number" min="0" value="${esc(saved.amount ?? '')}" placeholder="元"></div><div class="field"><label>欠租天數</label><input id="aiTestDays" type="number" min="1" value="${esc(saved.days ?? '')}" placeholder="天"></div><div class="field" style="grid-column:span 2"><label>租賃地址</label><input id="aiTestAddress" value="${esc(saved.address || '')}" placeholder="例：桃園市…"></div></div><div class="field" style="margin-top:12px"><label>測試備註（選填）</label><input id="aiTestNote" value="${esc(saved.note || '')}" placeholder="例：QA 測試，非正式催收"></div><div class="ai-toolbar" style="margin-top:14px"><button class="btn" type="button" onclick="AiRetell.syncRetellPrompt()">同步 Retell 腳本</button><button class="btn teal" type="button" onclick="AiRetell.dialTest()">測試外撥</button></div></article>`;
+    const last = global.state.ai.testDialLast || {};
+    const resultText = esc(formatTestCallResult(last));
+    return `<article class="settings-card" style="grid-column:span 2"><h4>測試外撥（手動輸入）</h4><p class="field-hint">不需媒合編號。請填寫<strong>承租人、租賃地址、欠款金額</strong>，AI 會確認姓名與地址並說出欠款。</p><div class="test-dial-grid"><div class="field"><label>房客手機</label><input id="aiTestPhone" value="${esc(saved.phone || '')}" placeholder="09xxxxxxxx"></div><div class="field"><label>承租人</label><input id="aiTestTenant" value="${esc(saved.tenant || '')}" placeholder="房客姓名"></div><div class="field"><label>欠款金額</label><input id="aiTestAmount" type="number" min="0" value="${esc(saved.amount ?? '')}" placeholder="元"></div><div class="field"><label>欠租天數</label><input id="aiTestDays" type="number" min="1" value="${esc(saved.days ?? '')}" placeholder="天"></div><div class="field" style="grid-column:span 2"><label>租賃地址</label><input id="aiTestAddress" value="${esc(saved.address || '')}" placeholder="例：桃園市…"></div></div><div class="field" style="margin-top:12px"><label>測試備註（選填）</label><input id="aiTestNote" value="${esc(saved.note || '')}" placeholder="例：QA 測試，非正式催收"></div><div class="field" style="margin-top:12px"><label>Retell 通話結果</label><textarea id="aiTestCallResult" class="test-call-result" readonly rows="10" placeholder="外撥後會自動顯示 Retell 回傳的 AI 進度、摘要與逐字稿">${resultText}</textarea></div><div class="ai-toolbar" style="margin-top:14px"><button class="btn" type="button" onclick="AiRetell.syncRetellPrompt()">同步 Retell 腳本</button><button class="btn" type="button" onclick="AiRetell.refreshTestCallResult()">查詢通話結果</button><button class="btn teal" type="button" onclick="AiRetell.dialTest()">測試外撥</button></div></article>`;
   }
 
   function readTestDialForm() {
@@ -217,6 +219,130 @@
     if (!form || !global.state?.ai) return;
     global.state.ai.testDial = form;
     saveAiConfig();
+  }
+
+  function saveTestDialLast(patch) {
+    if (!global.state?.ai) return;
+    global.state.ai.testDialLast = {
+      ...(global.state.ai.testDialLast || {}),
+      ...patch,
+      at: patch.at || new Date().toISOString(),
+    };
+    saveAiConfig();
+  }
+
+  function transcriptToText(transcript) {
+    if (!transcript) return '';
+    if (typeof transcript === 'string') return transcript;
+    if (Array.isArray(transcript)) {
+      return transcript
+        .map((t) => {
+          if (typeof t === 'string') return t;
+          const role = t.role || t.type || '';
+          const text = t.content || t.text || '';
+          return role ? `${role}: ${text}` : text;
+        })
+        .filter(Boolean)
+        .join('\n');
+    }
+    return String(transcript);
+  }
+
+  function formatTestCallResult(last) {
+    if (!last?.matchId && !last?.callId && !last?.result) {
+      return '尚無測試通話結果。外撥完成後會自動查詢 Retell 回傳。';
+    }
+    const lines = [];
+    if (last.matchId) lines.push(`測試編號：${last.matchId}`);
+    if (last.callId) lines.push(`Call ID：${last.callId}`);
+    if (last.pollStatus) lines.push(`查詢狀態：${last.pollStatus}`);
+    const r = last.result;
+    if (r) {
+      const log = r.aiLogs?.[0] || {};
+      if (log.call_id && log.call_id !== last.callId) lines.push(`Retell Call ID：${log.call_id}`);
+      if (log.connected != null) lines.push(`是否接通：${log.connected ? '是' : '否'}`);
+      lines.push(`AI 進度：${r.ai_progress || log.ai_progress || '—'}`);
+      lines.push(`風險：${r.risk || log.risk || '—'}`);
+      lines.push(`預計還款：${r.repay_date || log.repay_date || '—'}`);
+      lines.push(`下一步：${r.next_action || log.next_action || '—'}`);
+      lines.push(`摘要：${log.summary || '—'}`);
+      const transcript = transcriptToText(log.transcript);
+      if (transcript) {
+        lines.push('');
+        lines.push('逐字稿：');
+        lines.push(transcript);
+      }
+      lines.push('');
+      lines.push(`更新時間：${r.updated_at || log.at || '—'}`);
+    }
+    return lines.join('\n');
+  }
+
+  function updateTestCallResultUi() {
+    const el = global.$?.('aiTestCallResult');
+    if (!el) return;
+    el.value = formatTestCallResult(global.state.ai?.testDialLast);
+  }
+
+  async function fetchTestCallResult(matchId) {
+    return apiFetch(`/api/calls/results/${encodeURIComponent(matchId)}`);
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function pollTestCallResult(matchId, callId, opts = {}) {
+    const maxAttempts = opts.maxAttempts ?? 36;
+    const intervalMs = opts.intervalMs ?? 5000;
+    saveTestDialLast({ matchId, callId, pollStatus: '等待 Retell 回傳…', result: null });
+    updateTestCallResultUi();
+
+    for (let i = 0; i < maxAttempts; i++) {
+      if (i > 0) await sleep(intervalMs);
+      try {
+        const r = await fetchTestCallResult(matchId);
+        const result = r.result;
+        const log = result?.aiLogs?.[0];
+        const hasResult = Boolean(result?.updated_at && (result.ai_progress || log?.summary));
+        const callMatches = !callId || !log?.call_id || log.call_id === callId;
+        if (hasResult && callMatches) {
+          global.state.aiResults = { ...global.state.aiResults, [matchId]: result };
+          saveAiResults();
+          saveTestDialLast({
+            matchId,
+            callId: log?.call_id || callId,
+            pollStatus: '已收到 Retell 結果',
+            result,
+          });
+          updateTestCallResultUi();
+          return result;
+        }
+      } catch (err) {
+        const msg = String(err.message || err);
+        if (!/404|not found/i.test(msg)) {
+          saveTestDialLast({ matchId, callId, pollStatus: `查詢失敗：${msg}`, result: null });
+          updateTestCallResultUi();
+          throw err;
+        }
+      }
+      saveTestDialLast({
+        matchId,
+        callId,
+        pollStatus: `等待中…（${i + 1}/${maxAttempts}，約每 ${intervalMs / 1000} 秒查一次）`,
+        result: null,
+      });
+      updateTestCallResultUi();
+    }
+
+    saveTestDialLast({
+      matchId,
+      callId,
+      pollStatus: '逾時：通話可能尚未結束，或 Webhook 尚未回傳。可稍後再按「查詢通話結果」。',
+      result: null,
+    });
+    updateTestCallResultUi();
+    return null;
   }
 
   function makeTestMatchId(phone) {
@@ -425,12 +551,38 @@
         const r = await dialTestPayload(form, true);
         const one = r.results?.[0];
         if (one?.ok) {
+          const matchId = r.matchId || one.match_id;
+          const callId = one.call_id || '';
+          saveTestDialLast({
+            matchId,
+            callId,
+            pollStatus: '外撥已送出，等待 Retell 回傳…',
+            result: null,
+          });
+          updateTestCallResultUi();
           global.toast(`測試外撥已送出｜${form.phone}`);
+          pollTestCallResult(matchId, callId).then((result) => {
+            if (result) global.toast('已收到 Retell 通話結果');
+          }).catch((err) => global.toast(err.message || '查詢通話結果失敗'));
         } else {
           global.toast(one?.reason || r.error || '外撥失敗');
         }
       } catch (err) {
         global.toast(err.message || '外撥失敗');
+      }
+    },
+    async refreshTestCallResult() {
+      try {
+        readAiSettingsForm();
+        const last = global.state.ai?.testDialLast;
+        if (!last?.matchId) return global.toast('尚無測試編號，請先執行測試外撥');
+        saveTestDialLast({ pollStatus: '查詢中…', result: null });
+        updateTestCallResultUi();
+        const result = await pollTestCallResult(last.matchId, last.callId, { maxAttempts: 1, intervalMs: 0 });
+        if (result) global.toast('已更新 Retell 通話結果');
+        else global.toast('尚未收到 Retell 回傳，請稍後再查');
+      } catch (err) {
+        global.toast(err.message || '查詢通話結果失敗');
       }
     },
     onSwitchView(view) {
