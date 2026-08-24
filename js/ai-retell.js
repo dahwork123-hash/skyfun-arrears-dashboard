@@ -284,8 +284,11 @@
     el.value = formatTestCallResult(global.state.ai?.testDialLast);
   }
 
-  async function fetchTestCallResult(matchId) {
-    return apiFetch(`/api/calls/results/${encodeURIComponent(matchId)}`);
+  async function fetchTestCallResult(matchId, callId) {
+    const qs = new URLSearchParams();
+    if (callId) qs.set("call_id", callId);
+    qs.set("pull", "1");
+    return apiFetch(`/api/calls/results/${encodeURIComponent(matchId)}?${qs.toString()}`);
   }
 
   function sleep(ms) {
@@ -301,7 +304,7 @@
     for (let i = 0; i < maxAttempts; i++) {
       if (i > 0) await sleep(intervalMs);
       try {
-        const r = await fetchTestCallResult(matchId);
+        const r = await fetchTestCallResult(matchId, callId);
         const result = r.result;
         const log = result?.aiLogs?.[0];
         const hasResult = Boolean(result?.updated_at && (result.ai_progress || log?.summary));
@@ -320,7 +323,7 @@
         }
       } catch (err) {
         const msg = String(err.message || err);
-        if (!/404|not found/i.test(msg)) {
+        if (!/404|not found|202|尚未結束/i.test(msg)) {
           saveTestDialLast({ matchId, callId, pollStatus: `查詢失敗：${msg}`, result: null });
           updateTestCallResultUi();
           throw err;
