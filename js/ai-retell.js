@@ -274,6 +274,15 @@
     );
   }
 
+  function isAutoDialOn() {
+    return Boolean(global.state?.ai?.dialSettings?.autoDispatchEnabled);
+  }
+
+  function autoDialBannerHtml() {
+    const on = isAutoDialOn();
+    return `<div class="auto-dial-banner ${on ? 'on' : 'off'}"><div><b>自動撥號：${on ? '已開啟' : '已關閉'}</b><br><span>${on ? '系統可依設定時段自動／批次外撥。測試完成再開啟較安全。' : '目前僅允許「測試外撥」與單案「外撥」。批次／自動撥號已停用。'}</span></div><div class="spacer"></div><button class="btn ${on ? 'danger' : 'success'}" type="button" onclick="AiRetell.toggleAutoDial()">${on ? '關閉自動撥號' : '開啟自動撥號'}</button></div>`;
+  }
+
   function renderCollection(rows) {
     if (!global.state?.ai) global.AiRetell?.init?.();
     const esc = global.esc || ((s) => String(s ?? ''));
@@ -285,11 +294,15 @@
       return;
     }
     const s = global.state.ai.dialSettings;
+    const autoOn = isAutoDialOn();
     const eligible = collectionCases(rows);
     const withPhone = eligible.filter((c) => phoneOfCase(c));
     const missing = eligible.length - withPhone.length;
     const results = eligible.map((c) => aiResultOf(c.caseId)).filter(Boolean);
-    global.$('collection').innerHTML = `<div class="view-head"><div><h3>AI 電話催收</h3><p>${s.stageMinDays}～${s.stageMaxDays} 天案件；每案每日 ${s.dailyMaxPerCase} 次；時段 ${s.callHourStart}:00–${s.callHourEnd}:00</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.syncResults().then(()=>{render();toast('已同步 AI 結果')}).catch(e=>toast(e.message))">同步 AI 結果</button><button class="btn teal" onclick="AiRetell.dialBatch(false)">批次外撥</button><button class="btn warn" onclick="AiRetell.dialBatch(true)">強制外撥</button><button class="btn" onclick="switchView('aisettings')">調整頻率</button></div></div><div class="ai-kpis"><div class="ai-kpi"><small>AI 階段案件</small><b>${fmt(eligible.length)}</b></div><div class="ai-kpi"><small>已有手機</small><b>${fmt(withPhone.length)}</b></div><div class="ai-kpi"><small>缺手機</small><b class="down">${fmt(missing)}</b></div><div class="ai-kpi"><small>已有 AI 紀錄</small><b>${fmt(results.length)}</b></div></div><article class="panel"><div class="panel-hd"><h3>待 AI 催收清單</h3></div><div class="table-wrap"><table class="data-table"><thead><tr><th class="left">階段</th><th>天數</th><th class="left">編號</th><th class="left">承租人</th><th class="left">手機</th><th>欠款</th><th class="left">AI 進度</th><th class="left">操作</th></tr></thead><tbody>${eligible
+    const batchBtns = autoOn
+      ? `<button class="btn teal" onclick="AiRetell.dialBatch(false)">批次外撥</button><button class="btn warn" onclick="AiRetell.dialBatch(true)">強制外撥</button>`
+      : `<button class="btn" disabled title="請先開啟自動撥號">批次外撥（已鎖定）</button>`;
+    global.$('collection').innerHTML = `${autoDialBannerHtml()}<div class="view-head"><div><h3>AI 電話催收</h3><p>${s.stageMinDays}～${s.stageMaxDays} 天案件；每案每日 ${s.dailyMaxPerCase} 次；時段 ${s.callHourStart}:00–${s.callHourEnd}:00</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.syncResults().then(()=>{render();toast('已同步 AI 結果')}).catch(e=>toast(e.message))">同步 AI 結果</button>${batchBtns}<button class="btn" onclick="switchView('aisettings')">調整頻率</button></div></div><div class="ai-kpis"><div class="ai-kpi"><small>AI 階段案件</small><b>${fmt(eligible.length)}</b></div><div class="ai-kpi"><small>已有手機</small><b>${fmt(withPhone.length)}</b></div><div class="ai-kpi"><small>缺手機</small><b class="down">${fmt(missing)}</b></div><div class="ai-kpi"><small>已有 AI 紀錄</small><b>${fmt(results.length)}</b></div></div><article class="panel"><div class="panel-hd"><h3>待 AI 催收清單</h3></div><div class="table-wrap"><table class="data-table"><thead><tr><th class="left">階段</th><th>天數</th><th class="left">編號</th><th class="left">承租人</th><th class="left">手機</th><th>欠款</th><th class="left">AI 進度</th><th class="left">操作</th></tr></thead><tbody>${eligible
       .sort((a, b) => b.maxDays - a.maxDays || b.amount - a.amount)
       .map((c) => {
         const st = collectionStage(c.maxDays);
@@ -309,7 +322,7 @@
       return;
     }
     const d = global.state.ai.dialSettings;
-    global.$('aisettings').innerHTML = `<div class="view-head"><div><h3>AI 撥打頻率設定</h3><p>同步至 Cloudflare Worker</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.test()">測試連線</button><button class="btn primary" onclick="AiRetell.saveSettings()">儲存並同步</button></div></div><div class="settings-grid">${renderTestDialCard(esc)}<article class="settings-card"><h4>Cloudflare / Retell</h4><div class="field"><label>Worker URL</label><input id="aiMiddlewareUrl" value="${esc(global.state.ai.middlewareUrl)}"></div><div class="field"><label>from_number</label><input id="aiFromNumber" value="${esc(d.retellFromNumber || '')}"></div><div class="field"><label>Agent ID</label><input id="aiAgentId" value="${esc(d.retellAgentId || '')}"></div></article><article class="settings-card"><h4>每日撥打頻率</h4><div class="field"><label>每案每日上限</label><input id="aiDailyPerCase" type="number" min="1" value="${d.dailyMaxPerCase}"></div><div class="field"><label>全系統每日上限</label><input id="aiDailyTotal" type="number" min="1" value="${d.dailyMaxTotal}"></div><div class="field"><label>每案累計上限</label><input id="aiLifetime" type="number" min="1" value="${d.lifetimeMaxPerCase}"></div><div class="field"><label>AI 階段（天）</label><div style="display:flex;gap:8px"><input id="aiStageMin" type="number" value="${d.stageMinDays}"><span>～</span><input id="aiStageMax" type="number" value="${d.stageMaxDays}"></div></div><div class="field"><label>撥打時段</label><div style="display:flex;gap:8px"><input id="aiHourStart" type="number" value="${d.callHourStart}"><span>～</span><input id="aiHourEnd" type="number" value="${d.callHourEnd}"></div></div><label class="check-row"><input id="aiWeekdays" type="checkbox" ${d.callWeekdaysOnly ? 'checked' : ''}> 僅平日</label></article><article class="settings-card" style="grid-column:span 2"><h4>手機對照（編號=手機）</h4><p class="field-hint">同步載入時會自動從星鴻房客資料寫入；亦可手動覆寫。</p><div class="field"><textarea id="aiPhoneMap">${esc(Object.entries(global.state.ai.phoneMap).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea></div></article></div>`;
+    global.$('aisettings').innerHTML = `<div class="view-head"><div><h3>AI 撥打頻率設定</h3><p>同步至 Cloudflare Worker</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.test()">測試連線</button><button class="btn primary" onclick="AiRetell.saveSettings()">儲存並同步</button></div></div>${autoDialBannerHtml()}<div class="settings-grid">${renderTestDialCard(esc)}<article class="settings-card"><h4>Cloudflare / Retell</h4><div class="field"><label>Worker URL</label><input id="aiMiddlewareUrl" value="${esc(global.state.ai.middlewareUrl)}"></div><div class="field"><label>from_number</label><input id="aiFromNumber" value="${esc(d.retellFromNumber || '')}"></div><div class="field"><label>Agent ID</label><input id="aiAgentId" value="${esc(d.retellAgentId || '')}"></div></article><article class="settings-card"><h4>每日撥打頻率</h4><div class="field"><label>每案每日上限</label><input id="aiDailyPerCase" type="number" min="1" value="${d.dailyMaxPerCase}"></div><div class="field"><label>全系統每日上限</label><input id="aiDailyTotal" type="number" min="1" value="${d.dailyMaxTotal}"></div><div class="field"><label>每案累計上限</label><input id="aiLifetime" type="number" min="1" value="${d.lifetimeMaxPerCase}"></div><div class="field"><label>AI 階段（天）</label><div style="display:flex;gap:8px"><input id="aiStageMin" type="number" value="${d.stageMinDays}"><span>～</span><input id="aiStageMax" type="number" value="${d.stageMaxDays}"></div></div><div class="field"><label>撥打時段</label><div style="display:flex;gap:8px"><input id="aiHourStart" type="number" value="${d.callHourStart}"><span>～</span><input id="aiHourEnd" type="number" value="${d.callHourEnd}"></div></div><label class="check-row"><input id="aiWeekdays" type="checkbox" ${d.callWeekdaysOnly ? 'checked' : ''}> 僅平日</label></article><article class="settings-card" style="grid-column:span 2"><h4>手機對照（編號=手機）</h4><p class="field-hint">同步載入時會自動從星鴻房客資料寫入；亦可手動覆寫。</p><div class="field"><textarea id="aiPhoneMap">${esc(Object.entries(global.state.ai.phoneMap).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea></div></article></div>`;
   }
 
   function readAiSettingsForm() {
@@ -326,6 +339,7 @@
       callHourStart: Math.min(23, Math.max(0, +(global.$('aiHourStart').value || 9))),
       callHourEnd: Math.min(24, Math.max(1, +(global.$('aiHourEnd').value || 17))),
       callWeekdaysOnly: global.$('aiWeekdays').checked,
+      autoDispatchEnabled: Boolean(global.state.ai.dialSettings.autoDispatchEnabled),
     };
     const map = {};
     (global.$('aiPhoneMap').value || '').split(/\r?\n/).forEach((line) => {
@@ -383,12 +397,32 @@
       else global.toast(one?.reason || r.error || '外撥失敗');
     },
     async dialBatch(force) {
+      if (!isAutoDialOn()) {
+        return global.toast('自動撥號已關閉。請先開啟自動撥號，或改用單案／測試外撥。');
+      }
       const rows = collectionCases(global.filteredCases()).filter((c) => phoneOfCase(c));
       if (!rows.length) return global.toast('沒有可外撥案件');
+      if (!global.confirm(`確定要批次外撥 ${rows.length} 通？`)) return;
       const r = await dialCases(rows, force);
       global.toast(`外撥：成功 ${r.dialed || 0} / ${rows.length}`);
       await syncAiResultsFromServer();
       global.render();
+    },
+    async toggleAutoDial() {
+      try {
+        if (!global.state?.ai?.dialSettings) global.AiRetell.init();
+        const next = !isAutoDialOn();
+        if (next && !global.confirm('確定開啟自動撥號？開啟後可使用批次外撥，請確認測試已完成。')) {
+          return;
+        }
+        global.state.ai.dialSettings.autoDispatchEnabled = next;
+        saveAiConfig();
+        await pushAiSettingsToServer();
+        global.render();
+        global.toast(next ? '已開啟自動撥號' : '已關閉自動撥號');
+      } catch (err) {
+        global.toast(err.message || '切換失敗');
+      }
     },
     fillTestFromCase() {
       const caseId = global.$('aiTestCaseId')?.value?.trim();
