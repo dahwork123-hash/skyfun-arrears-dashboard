@@ -252,6 +252,7 @@
 
   global.AiRetell = {
     init() {
+      if (!global.state) return;
       if (!global.state.ai) global.state.ai = loadAiConfig();
       if (!global.state.aiResults) global.state.aiResults = loadAiResults();
     },
