@@ -357,6 +357,8 @@
       if (!global.state.aiResults) global.state.aiResults = loadAiResults();
     },
     ingestPhones,
+    phoneOfCase,
+    normalizePhone,
     renderCollection,
     renderAiSettings,
     syncSettings: syncAiSettingsFromServer,
