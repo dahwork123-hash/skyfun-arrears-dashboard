@@ -105,7 +105,7 @@
         <p class="arrears-auth-tag">內部登入</p>
       </div>
     </div>
-    <p class="arrears-auth-hint">請使用<strong>星鴻工具箱帳號</strong>登入（與工具箱相同帳密）。登入後可同步星鴻最新資料；未登入也會自動載入公開快取。</p>
+    <p class="arrears-auth-hint">請使用<strong>星鴻工具箱帳號</strong>登入。登入後即可同步星鴻最新呆帳資料。</p>
     <label for="arrears-auth-username">帳號</label>
     <input id="arrears-auth-username" type="text" maxlength="40" autocomplete="username" placeholder="工具箱帳號">
     <label for="arrears-auth-password">密碼</label>
@@ -129,9 +129,9 @@
     <div class="privacy">每日由 Cloudflare RPA 自星鴻系統同步；亦可手動匯入 Excel 覆蓋。<br>資料僅供內部追蹤，請勿外流。</div>
   </aside>
   <main class="main">
-    <header class="topbar"><div class="title"><h2 id="pageTitle">全國呆帳營運總覽</h2><p id="sourceMeta">正在載入公開快取…</p></div><div class="spacer"></div><span id="authUserLabel" style="display:none;font-size:12px;color:var(--muted);margin-right:8px;font-weight:700"></span><button class="btn" id="authLogoutBtn" style="display:none">登出</button>&nbsp;<button class="btn" id="refreshBtn" onclick="loadDailyData(true)">同步星鴻並載入</button>&nbsp;<button class="btn" id="exportBtn" style="display:none" onclick="exportTracking()">匯出追蹤 Excel</button>&nbsp;<button class="btn primary" onclick="document.getElementById('fileInput').click()">匯入 Excel 覆蓋</button></header>
+    <header class="topbar"><div class="title"><h2 id="pageTitle">全國呆帳營運總覽</h2><p id="sourceMeta">登入後自動載入…</p></div><div class="spacer"></div><span id="authUserLabel" style="display:none;font-size:12px;color:var(--muted);margin-right:8px;font-weight:700"></span><button class="btn" id="authLogoutBtn" style="display:none">登出</button>&nbsp;<button class="btn" id="refreshBtn" onclick="loadDailyData(true)">同步星鴻並載入</button>&nbsp;<button class="btn" id="exportBtn" style="display:none" onclick="exportTracking()">匯出追蹤 Excel</button>&nbsp;<button class="btn primary" onclick="document.getElementById('fileInput').click()">匯入 Excel 覆蓋</button></header>
     <div class="content">
-      <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>請先在登入畫面輸入<strong>星鴻工具箱帳號</strong>。即使尚未登入，系統也會自動載入公開快取；登入後再按「同步星鴻並載入」可重抓最新備註。</p><button class="btn primary" onclick="loadDailyData(true)">載入／同步資料</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 自動同步</span><span>每 15 分鐘刷新快取</span></div></div></section>
+      <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>登入成功後會自動載入。若資料未出現，按「同步星鴻並載入」重抓最新備註（最多約 90 秒，逾時改載快取）。</p><button class="btn primary" onclick="loadDailyData(true)">同步星鴻並載入</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 自動同步</span><span>每 15 分鐘刷新快取</span></div></div></section>
       <section class="workspace" id="workspace">
         <div class="filters"><div class="filter-head"><h3>查詢條件</h3><div class="spacer"></div><button class="link-btn" type="button" id="filterCollapseBtn" onclick="toggleFiltersCollapse()">收合</button><button class="link-btn" onclick="clearFilters()">清除全部</button></div><input class="search" id="query" placeholder="編號／地址／承租人／備註" oninput="state.filters.q=this.value.trim();state.page=1;render()"><div id="filterGroups"></div></div>
         <div class="stage">
@@ -274,23 +274,19 @@ async function triggerArrearsSync(){
 }
 async function loadDailyData(showToast=true){
   const authed=window.skyfunArrearsAuth?.isReady?.();
-  const primary=window.ARREARS_DATA_URL;
-  const fallback=window.ARREARS_DATA_URL_FALLBACK;
-  const urls=[];
-  if(authed&&primary)urls.push(primary);
-  if(fallback)urls.push(fallback);
+  if(!authed){
+    if(showToast)toast('登入驗證中，請稍候…');
+    return;
+  }
+  const urls=[window.ARREARS_DATA_URL,window.ARREARS_DATA_URL_FALLBACK].filter(Boolean);
   if(!urls.length){if(showToast)toast('未設定資料來源（config.js）');return;}
-  const token=authed?window.skyfunArrearsAuth.getToken():'';
+  const token=window.skyfunArrearsAuth.getToken();
   const meta=$('sourceMeta');
   const prevSync=state.meta?.lastSyncedAt||'';
   const refreshBtn=$('refreshBtn');
   const syncSec=Math.max(15,Number(window.ARREARS_SYNC_TIMEOUT_SEC||90));
-  if(refreshBtn&&showToast){refreshBtn.disabled=true;refreshBtn.textContent=authed?'同步中…':'載入中…'}
-  if(showToast&&!authed){
-    toast('未登入：先載入公開快取；登入後可同步星鴻');
-    if(meta)meta.textContent='未登入，正在載入公開快取…';
-  }
-  if(showToast&&authed){
+  if(refreshBtn&&showToast){refreshBtn.disabled=true;refreshBtn.textContent='同步中…'}
+  if(showToast){
     if(meta)meta.textContent=`正在同步星鴻（最多 ${syncSec} 秒，逾時改載快取）…`;
     try{
       await withTimeout(triggerArrearsSync(),syncSec*1000,'星鴻同步');
@@ -301,15 +297,15 @@ async function loadDailyData(showToast=true){
       if(meta)meta.textContent='改載入雲端／GitHub 快取…';
     }
   }else if(meta&&!state.cases.length){
-    meta.textContent=authed?'正在載入雲端資料…':'正在載入公開快取…';
+    meta.textContent='正在載入資料…';
   }
   let lastErr=null,best=null;
   for(const url of urls){
     try{
       const headers={};
-      if(authed&&url===primary&&token)headers['X-Skyfun-Session']=token;
+      if(url===window.ARREARS_DATA_URL&&token)headers['X-Skyfun-Session']=token;
       const res=await fetch(url+(url.includes('?')?'&':'?')+'t='+Date.now(),{headers,credentials:'omit'});
-      if((res.status===401||res.status===403)&&url===primary)throw new Error('登入已失效或無權限，請重新登入');
+      if((res.status===401||res.status===403)&&url===window.ARREARS_DATA_URL)throw new Error('登入已失效，請重新登入');
       if(!res.ok)throw new Error('HTTP '+res.status);
       const payload=await res.json();
       if(payload.ok===false)throw new Error(payload.error||'API 回傳失敗');
@@ -326,11 +322,7 @@ async function loadDailyData(showToast=true){
         render();
         if(state.view!=='overview')switchView(state.view);
       }
-      if(meta){
-        meta.textContent=authed
-          ?`星鴻同步：${state.meta.importedAt||'—'} · ${fmt(state.cases.length)} 案`
-          :`公開快取：${state.meta.importedAt||'—'} · ${fmt(state.cases.length)} 案（未登入）`;
-      }
+      if(meta)meta.textContent=`星鴻同步：${state.meta.importedAt||'—'} · ${fmt(state.cases.length)} 案`;
       if(showToast)toast(`已載入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆明細`);
       else if(changed&&state.cases.length)toast(`資料已更新 · ${fmt(state.cases.length)} 案`);
     }catch(err){
@@ -340,7 +332,7 @@ async function loadDailyData(showToast=true){
     }
     return;
   }
-  if(meta&&!state.cases.length)meta.textContent=authed?'雲端資料載入失敗，可手動匯入 Excel':'公開快取載入失敗，請先登入或匯入 Excel';
+  if(meta&&!state.cases.length)meta.textContent='資料載入失敗，可手動匯入 Excel';
   if(showToast)toast((lastErr&&lastErr.message)||'無法載入資料');
 }
 let autoRefreshTimer=null;
@@ -399,7 +391,7 @@ document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>switchView(b.d
 function openCases(){state.view='cases';switchView('cases')}function setExactAlert(key){state.filters.alert=[key];state.page=1;buildFilters();switchView('cases')}function drillAlert(min){state.filters.alert=ALERTS.filter(a=>a.min>=+min).map(a=>a.key);state.page=1;buildFilters();switchView('cases')}function drillRegion(v){state.filters.region=[v];state.filters.office=[];state.filters.staff=[];state.page=1;buildFilters();switchView('organization')}function drillOffice(v){state.filters.office=[v];state.filters.staff=[];state.page=1;buildFilters();switchView('cases')}function openNoticeCases(o,s){state.filters.office=[o];state.filters.staff=[s];state.page=1;buildFilters();switchView('cases')}
 function exportTracking(){if(typeof XLSX==='undefined'||!state.cases.length)return toast('請先載入資料');const cases=filteredCases(),caseRows=cases.map(c=>({'管理區域':c.region,'營業處':c.office,'代管人員':c.staff,'風險程度':c.riskLevel||'','催收階段':STAGE[c.collectionStage]?.label||'','警示級距':c.alert.label,'最長欠租天數':c.maxDays,'合約起租日':c.leaseStart||'','合約迄日':c.leaseEnd||'','AI進度':c.aiProgress||'','下一步行動':c.nextAction||'','媒合/轉租編號':c.caseId,'物件縣市':c.city,'租賃地址':c.address,'承租人':c.tenant,'委託類型':c.type,'催收狀態':c.status,'應收明細數':c.lineCount,'欠款金額':c.amount,'催收備註':c.note,'本地追蹤備註':loadCaseExtras(c.caseId).localMemo||''})),ids=new Set(cases.map(c=>c.caseId)),lineRows=state.lines.filter(l=>ids.has(l.caseId)).map(l=>({'管理區域':l.region,'營業處':l.office,'代管人員':l.staff,'警示級距':l.alert.label,'催收狀態':l.status,'委託類型':l.type,'媒合/轉租編號':l.caseId,'物件縣市':l.city,'租賃地址':l.address,'合約起租日':l.leaseStart||'','合約迄日':l.leaseEnd||'','欠租天數':l.days,'應收款日':l.dueRaw,'租金':l.rent,'應收金額':l.receivable,'實收款日':l.paidDate,'實收金額':l.paid,'欠款金額':l.arrears,'承租人':l.tenant,'催收備註':l.note})),wb=XLSX.utils.book_new(),ws1=XLSX.utils.json_to_sheet(caseRows),ws2=XLSX.utils.json_to_sheet(lineRows);ws1['!autofilter']={ref:ws1['!ref']};ws2['!autofilter']={ref:ws2['!ref']};ws1['!cols']=Object.keys(caseRows[0]||{}).map(k=>({wch:Math.min(38,Math.max(10,k.length*2+2))}));ws2['!cols']=Object.keys(lineRows[0]||{}).map(k=>({wch:Math.min(38,Math.max(10,k.length*2+2))}));XLSX.utils.book_append_sheet(wb,ws1,'追蹤案件');XLSX.utils.book_append_sheet(wb,ws2,'應收明細');XLSX.writeFile(wb,`包租呆帳追蹤_${(state.meta.asOf||iso(new Date())).replace(/-/g,'')}.xlsx`);toast('已匯出目前查詢範圍的追蹤 Excel')}
 document.addEventListener('skyfun-auth-ready',()=>{loadDailyData(false);startAutoRefresh();scheduleVisibilityRefresh()});
-document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('#memoModal [data-fill]').forEach(btn=>{btn.addEventListener('click',()=>{const ta=$('memoEditorInput');if(!ta)return;const prefix=`[業務 ${new Date().getMonth()+1}/${new Date().getDate()}] `;ta.value=(ta.value?ta.value+'\n':'')+prefix+btn.getAttribute('data-fill')})});loadDailyData(false);if(window.skyfunArrearsAuth?.isReady?.()){startAutoRefresh();scheduleVisibilityRefresh()}});
+document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('#memoModal [data-fill]').forEach(btn=>{btn.addEventListener('click',()=>{const ta=$('memoEditorInput');if(!ta)return;const prefix=`[業務 ${new Date().getMonth()+1}/${new Date().getDate()}] `;ta.value=(ta.value?ta.value+'\n':'')+prefix+btn.getAttribute('data-fill')})});if(window.skyfunArrearsAuth?.isReady?.()){loadDailyData(false);startAutoRefresh();scheduleVisibilityRefresh()}});
 </script>
 </body>
 </html>
