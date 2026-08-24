@@ -373,7 +373,10 @@
       try {
         readAiSettingsForm();
         const r = await apiFetch('/api/retell/sync-prompt', { method: 'POST', body: '{}' });
-        global.toast(`Retell 腳本已同步｜${r.llm_id || r.agent_id || 'OK'}`);
+        const hint = r.engine_type === 'conversation-flow'
+          ? `Conversation Flow｜${r.conversation_flow_id || 'OK'}`
+          : `${r.llm_id || r.agent_id || 'OK'}`;
+        global.toast(`Retell 腳本已同步｜${hint}`);
       } catch (err) {
         global.toast(err.message || '同步 Retell 腳本失敗');
       }
