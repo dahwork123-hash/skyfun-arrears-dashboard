@@ -131,7 +131,7 @@
   <main class="main">
     <header class="topbar"><div class="title"><h2 id="pageTitle">全國呆帳營運總覽</h2><p id="sourceMeta">請先登入…</p></div><div class="spacer"></div><span id="authUserLabel" style="display:none;font-size:12px;color:var(--muted);margin-right:8px;font-weight:700"></span><button class="btn" id="authLogoutBtn" style="display:none">登出</button>&nbsp;<button class="btn" id="refreshBtn" onclick="loadDailyData(true)">同步星鴻並載入</button>&nbsp;<button class="btn" id="exportBtn" style="display:none" onclick="exportTracking()">匯出追蹤 Excel</button>&nbsp;<button class="btn primary" onclick="document.getElementById('fileInput').click()">匯入 Excel 覆蓋</button></header>
     <div class="content">
-      <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>系統會自動載入 Cloudflare RPA 每日同步的星鴻「欠租1天」資料。按「同步星鴻並載入」可立即從星鴻重抓最新備註（約 1～2 分鐘）。</p><button class="btn primary" onclick="loadDailyData(true)">同步星鴻並載入</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 自動同步</span><span>每 15 分鐘刷新快取</span></div></div></section>
+      <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>登入後會自動載入快取。若畫面空白，按「同步星鴻並載入」；星鴻重抓最多約 90 秒，逾時會改載現有快取，不會一直卡住。</p><button class="btn primary" onclick="loadDailyData(true)">同步星鴻並載入</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>每日 07:00 自動同步</span><span>每 15 分鐘刷新快取</span></div></div></section>
       <section class="workspace" id="workspace">
         <div class="filters"><div class="filter-head"><h3>查詢條件</h3><div class="spacer"></div><button class="link-btn" type="button" id="filterCollapseBtn" onclick="toggleFiltersCollapse()">收合</button><button class="link-btn" onclick="clearFilters()">清除全部</button></div><input class="search" id="query" placeholder="編號／地址／承租人／備註" oninput="state.filters.q=this.value.trim();state.page=1;render()"><div id="filterGroups"></div></div>
         <div class="stage">
@@ -256,6 +256,11 @@ function applyPayload(payload,opts={}){
     switchView('overview');
   }
 }
+function withTimeout(promise,ms,label){
+  let timer;
+  const timeout=new Promise((_,rej)=>{timer=setTimeout(()=>rej(new Error((label||'操作')+'逾時（'+Math.round(ms/1000)+' 秒）')),ms)});
+  return Promise.race([promise,timeout]).finally(()=>clearTimeout(timer));
+}
 async function triggerArrearsSync(){
   const syncUrl=window.ARREARS_SYNC_URL||String(window.ARREARS_DATA_URL||'').replace(/\/data\/latest\.json.*$/,'/sync');
   if(!syncUrl)return null;
@@ -275,17 +280,21 @@ async function loadDailyData(showToast=true){
   const meta=$('sourceMeta');
   const prevSync=state.meta?.lastSyncedAt||'';
   const refreshBtn=$('refreshBtn');
+  const syncSec=Math.max(15,Number(window.ARREARS_SYNC_TIMEOUT_SEC||90));
   if(refreshBtn&&showToast){refreshBtn.disabled=true;refreshBtn.textContent='同步中…'}
   if(showToast){
-    if(meta)meta.textContent='正在同步星鴻最新資料（約 1～2 分鐘）…';
+    if(meta)meta.textContent=`正在同步星鴻（最多 ${syncSec} 秒，逾時改載快取）…`;
     try{
-      await triggerArrearsSync();
+      await withTimeout(triggerArrearsSync(),syncSec*1000,'星鴻同步');
+      if(meta)meta.textContent='星鴻同步完成，正在載入資料…';
     }catch(err){
       console.warn('sync failed',err);
-      toast('星鴻同步失敗：'+(err.message||err)+'（改載入快取）');
+      toast('星鴻同步未完成：'+(err.message||err)+'（改載入快取）');
+      if(meta)meta.textContent='改載入雲端／GitHub 快取…';
     }
+  }else if(meta&&!state.cases.length){
+    meta.textContent='正在載入雲端資料…';
   }
-  if(meta&&showToast)meta.textContent='正在載入雲端資料…';
   let lastErr=null,best=null;
   for(const url of urls){
     try{
@@ -301,16 +310,22 @@ async function loadDailyData(showToast=true){
   }
   if(refreshBtn&&showToast){refreshBtn.disabled=false;refreshBtn.textContent='同步星鴻並載入'}
   if(best){
-    const changed=!prevSync||prevSync!==(best.syncedAt||'');
-    if(changed||!state.cases.length||showToast){
-      applyPayload(best,{preserveUi:!showToast&&!!state.cases.length});
-      buildFilters();
-      render();
-      if(state.view!=='overview')switchView(state.view);
+    try{
+      const changed=!prevSync||prevSync!==(best.syncedAt||'');
+      if(changed||!state.cases.length||showToast){
+        applyPayload(best,{preserveUi:!showToast&&!!state.cases.length});
+        buildFilters();
+        render();
+        if(state.view!=='overview')switchView(state.view);
+      }
+      if(meta)meta.textContent=`星鴻同步：${state.meta.importedAt||'—'} · ${fmt(state.cases.length)} 案`;
+      if(showToast)toast(`已載入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆明細`);
+      else if(changed&&state.cases.length)toast(`資料已更新 · ${fmt(state.cases.length)} 案`);
+    }catch(err){
+      console.error(err);
+      if(meta&&!state.cases.length)meta.textContent='資料解析失敗，可手動匯入 Excel';
+      if(showToast)toast('資料載入失敗：'+(err.message||err));
     }
-    if(meta)meta.textContent=`星鴻同步：${state.meta.importedAt||'—'} · ${fmt(state.cases.length)} 案`;
-    if(showToast)toast(`已同步 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆明細`);
-    else if(changed&&state.cases.length)toast(`資料已更新 · ${fmt(state.cases.length)} 案`);
     return;
   }
   if(meta&&!state.cases.length)meta.textContent='雲端資料載入失敗，可手動匯入 Excel';
@@ -328,7 +343,7 @@ function scheduleVisibilityRefresh(){
     if(document.visibilityState==='visible')loadDailyData(false);
   });
 }
-function processFile(file){if(typeof XLSX==='undefined')return toast('Excel 解析函式庫未載入，請確認網路連線。');const reader=new FileReader();reader.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array',cellDates:true}),r=extractRows(wb);state.lines=r.lines;state.cases=buildCases(r.lines);state.meta={file:file.name,sheet:r.sheet,sourceRows:r.sourceRows,validLines:r.lines.length,asOf:inferAsOf(r.lines),importedAt:new Date().toLocaleString('zh-TW')};state.filters=DEFAULT_FILTERS();state.view='overview';state.page=1;$('query').value='';$('emptyState').style.display='none';$('workspace').classList.add('ready');$('exportBtn').style.display='inline-block';buildFilters();switchView('overview');toast(`已匯入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆應收明細，已套用預設「轉租」`)}catch(err){console.error(err);toast(err.message)}};reader.onerror=()=>toast('檔案讀取失敗，請確認 Excel 未被鎖定。');reader.readAsArrayBuffer(file)}
+function processFile(file){if(typeof XLSX==='undefined')return toast('Excel 解析函式庫未載入，請確認網路連線。');const reader=new FileReader();reader.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array',cellDates:true}),r=extractRows(wb);state.lines=r.lines;state.cases=buildCases(r.lines);AiRetell.ingestPhones(state.cases);state.meta={file:file.name,sheet:r.sheet,sourceRows:r.sourceRows,validLines:r.lines.length,asOf:inferAsOf(r.lines),importedAt:new Date().toLocaleString('zh-TW')};state.filters=DEFAULT_FILTERS();state.view='overview';state.page=1;$('query').value='';$('emptyState').style.display='none';$('workspace').classList.add('ready');$('exportBtn').style.display='inline-block';buildFilters();switchView('overview');toast(`已匯入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆應收明細，已套用預設「轉租」`)}catch(err){console.error(err);toast(err.message)}};reader.onerror=()=>toast('檔案讀取失敗，請確認 Excel 未被鎖定。');reader.readAsArrayBuffer(file)}
 $('fileInput').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)processFile(f);e.target.value='' });
 function uniq(arr){return[...new Set(arr.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'zh-Hant',{numeric:true}))}
 const FILTER_DEFS=[['risk','風險程度'],['stage','催收階段'],['alert','遲繳級距'],['type','委託類型'],['region','管理區域'],['status','催收狀態'],['office','營業處'],['city','物件縣市'],['staff','代管人員']];
