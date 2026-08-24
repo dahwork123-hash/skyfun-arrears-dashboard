@@ -172,6 +172,7 @@
       match_id: c.caseId,
       to_number: phoneOfCase(c),
       tenant_name: c.tenant || '',
+      rent_address: c.address || '',
       arrears_amount: c.amount,
       overdue_days: c.maxDays,
       skip_reason: skipReason(c),
@@ -195,7 +196,7 @@
 
   function renderTestDialCard(esc) {
     const saved = global.state.ai.testDial || {};
-    return `<article class="settings-card" style="grid-column:span 2"><h4>測試外撥（手動輸入）</h4><p class="field-hint">不需媒合編號。填入手機與測試資訊後即可外撥（系統會自動產生測試編號）。</p><div class="test-dial-grid"><div class="field"><label>房客手機</label><input id="aiTestPhone" value="${esc(saved.phone || '')}" placeholder="09xxxxxxxx"></div><div class="field"><label>承租人</label><input id="aiTestTenant" value="${esc(saved.tenant || '')}" placeholder="房客姓名"></div><div class="field"><label>欠款金額</label><input id="aiTestAmount" type="number" min="0" value="${esc(saved.amount ?? '')}" placeholder="元"></div><div class="field"><label>欠租天數</label><input id="aiTestDays" type="number" min="1" value="${esc(saved.days ?? '')}" placeholder="天"></div><div class="field"><label>租賃地址</label><input id="aiTestAddress" value="${esc(saved.address || '')}" placeholder="選填"></div></div><div class="field" style="margin-top:12px"><label>測試備註（選填）</label><input id="aiTestNote" value="${esc(saved.note || '')}" placeholder="例：QA 測試，非正式催收"></div><div class="ai-toolbar" style="margin-top:14px"><button class="btn teal" type="button" onclick="AiRetell.dialTest()">測試外撥</button></div></article>`;
+    return `<article class="settings-card" style="grid-column:span 2"><h4>測試外撥（手動輸入）</h4><p class="field-hint">不需媒合編號。請填寫<strong>承租人、租賃地址、欠款金額</strong>，AI 會確認姓名與地址並說出欠款。</p><div class="test-dial-grid"><div class="field"><label>房客手機</label><input id="aiTestPhone" value="${esc(saved.phone || '')}" placeholder="09xxxxxxxx"></div><div class="field"><label>承租人</label><input id="aiTestTenant" value="${esc(saved.tenant || '')}" placeholder="房客姓名"></div><div class="field"><label>欠款金額</label><input id="aiTestAmount" type="number" min="0" value="${esc(saved.amount ?? '')}" placeholder="元"></div><div class="field"><label>欠租天數</label><input id="aiTestDays" type="number" min="1" value="${esc(saved.days ?? '')}" placeholder="天"></div><div class="field" style="grid-column:span 2"><label>租賃地址</label><input id="aiTestAddress" value="${esc(saved.address || '')}" placeholder="例：桃園市…"></div></div><div class="field" style="margin-top:12px"><label>測試備註（選填）</label><input id="aiTestNote" value="${esc(saved.note || '')}" placeholder="例：QA 測試，非正式催收"></div><div class="ai-toolbar" style="margin-top:14px"><button class="btn" type="button" onclick="AiRetell.syncRetellPrompt()">同步 Retell 腳本</button><button class="btn teal" type="button" onclick="AiRetell.dialTest()">測試外撥</button></div></article>`;
   }
 
   function readTestDialForm() {
@@ -236,6 +237,7 @@
             match_id: matchId,
             to_number: phone,
             tenant_name: form.tenant || '',
+            rent_address: form.address || '',
             arrears_amount: form.amount,
             overdue_days: form.days,
             skip_reason: '',
@@ -365,7 +367,16 @@
     async test() {
       readAiSettingsForm();
       const r = await apiFetch('/health');
-      global.toast(`連線 OK｜live=${!r.mock}`);
+      global.toast(`連線 OK｜live=${!r.mock}｜自動撥號=${r.autoDispatchEnabled ? '開' : '關'}`);
+    },
+    async syncRetellPrompt() {
+      try {
+        readAiSettingsForm();
+        const r = await apiFetch('/api/retell/sync-prompt', { method: 'POST', body: '{}' });
+        global.toast(`Retell 腳本已同步｜${r.llm_id || r.agent_id || 'OK'}`);
+      } catch (err) {
+        global.toast(err.message || '同步 Retell 腳本失敗');
+      }
     },
     async dialOne(caseId, force) {
       const c = global.state.cases.find((x) => x.caseId === caseId);
