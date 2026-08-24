@@ -238,10 +238,16 @@
   }
 
   function ingestPhones(cases) {
-    cases.forEach((c) => {
+    if (!global.state.ai) global.state.ai = loadAiConfig();
+    if (!global.state.ai.phoneMap) global.state.ai.phoneMap = {};
+    (cases || []).forEach((c) => {
       if (c.phone) global.state.ai.phoneMap[c.caseId] = c.phone;
     });
-    saveAiConfig();
+    try {
+      saveAiConfig();
+    } catch (err) {
+      console.warn('saveAiConfig failed', err);
+    }
   }
 
   global.AiRetell = {
