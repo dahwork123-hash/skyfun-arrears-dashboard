@@ -403,8 +403,6 @@
         global.toast(err.message || '切換失敗');
       }
     },
-    fillTestFromCase() {},
-    lookupTenantPhone() {},
     async dialTest() {
       try {
         readAiSettingsForm();
