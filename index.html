@@ -225,7 +225,7 @@ function applyPayload(payload,opts={}){
     return {
       ...l,
       days,
-      phone:l.phone||l.tenantPhone||'',
+      phone:String(l.phone||l.tenantPhone||'').trim(),
       dueDate:parseRoc(l.dueDate||l.dueRaw),
       alert:alertOf(days)
     };
@@ -323,9 +323,10 @@ async function loadDailyData(showToast=true){
         render();
         if(state.view!=='overview')switchView(state.view);
       }
-      if(meta)meta.textContent=`星鴻同步：${state.meta.importedAt||'—'} · ${fmt(state.cases.length)} 案`;
-      if(showToast)toast(`已載入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆明細`);
-      else if(changed&&state.cases.length)toast(`資料已更新 · ${fmt(state.cases.length)} 案`);
+      const withPhone=state.cases.filter(c=>c.phone||(state.ai?.phoneMap||{})[c.caseId]).length;
+      if(meta)meta.textContent=`星鴻同步：${state.meta.importedAt||'—'} · ${fmt(state.cases.length)} 案 · 手機 ${fmt(withPhone)}`;
+      if(showToast)toast(`已載入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆明細（含手機 ${fmt(withPhone)}）`);
+      else if(changed&&state.cases.length)toast(`資料已更新 · ${fmt(state.cases.length)} 案 · 手機 ${fmt(withPhone)}`);
     }catch(err){
       console.error(err);
       if(meta&&!state.cases.length)meta.textContent='資料解析失敗，可手動匯入 Excel';
@@ -348,7 +349,7 @@ function scheduleVisibilityRefresh(){
     if(document.visibilityState==='visible')loadDailyData(false);
   });
 }
-function processFile(file){if(typeof XLSX==='undefined')return toast('Excel 解析函式庫未載入，請確認網路連線。');const reader=new FileReader();reader.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array',cellDates:true}),r=extractRows(wb);state.lines=r.lines;state.cases=buildCases(r.lines);AiRetell.ingestPhones(state.cases);state.meta={file:file.name,sheet:r.sheet,sourceRows:r.sourceRows,validLines:r.lines.length,asOf:inferAsOf(r.lines),importedAt:new Date().toLocaleString('zh-TW')};state.filters=DEFAULT_FILTERS();state.view='overview';state.page=1;$('query').value='';$('emptyState').style.display='none';$('workspace').classList.add('ready');$('exportBtn').style.display='inline-block';buildFilters();switchView('overview');toast(`已匯入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆應收明細，已套用預設「轉租」`)}catch(err){console.error(err);toast(err.message)}};reader.onerror=()=>toast('檔案讀取失敗，請確認 Excel 未被鎖定。');reader.readAsArrayBuffer(file)}
+function processFile(file){if(typeof XLSX==='undefined')return toast('Excel 解析函式庫未載入，請確認網路連線。');const reader=new FileReader();reader.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:'array',cellDates:true}),r=extractRows(wb);state.lines=r.lines.map(l=>({...l,phone:String(l.phone||l.tenantPhone||'').trim()}));state.cases=buildCases(state.lines);AiRetell.ingestPhones(state.cases);const withPhone=state.cases.filter(c=>c.phone).length;state.meta={file:file.name,sheet:r.sheet,sourceRows:r.sourceRows,validLines:r.lines.length,asOf:inferAsOf(r.lines),importedAt:new Date().toLocaleString('zh-TW')};state.filters=DEFAULT_FILTERS();state.view='overview';state.page=1;$('query').value='';$('emptyState').style.display='none';$('workspace').classList.add('ready');$('exportBtn').style.display='inline-block';buildFilters();switchView('overview');toast(`已匯入 ${fmt(state.cases.length)} 案／${fmt(state.lines.length)} 筆明細（含手機 ${fmt(withPhone)}），已套用預設「轉租」`)}catch(err){console.error(err);toast(err.message)}};reader.onerror=()=>toast('檔案讀取失敗，請確認 Excel 未被鎖定。');reader.readAsArrayBuffer(file)}
 $('fileInput').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)processFile(f);e.target.value='' });
 function uniq(arr){return[...new Set(arr.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'zh-Hant',{numeric:true}))}
 const FILTER_DEFS=[['risk','風險程度'],['stage','催收階段'],['alert','遲繳級距'],['type','委託類型'],['region','管理區域'],['status','催收狀態'],['office','營業處'],['city','物件縣市'],['staff','代管人員']];
