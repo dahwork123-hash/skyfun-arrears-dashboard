@@ -23,20 +23,29 @@
       stageMaxDays: 7,
       retellFromNumber: '+886277449414',
       retellAgentId: 'agent_937afc9495880b262fe9cf5bf8',
-      retellAgentVersion: 31,
+      retellAgentVersion: 'latest_published',
     },
   });
 
   function loadAiConfig() {
+    const defaults = DEFAULT_AI_CONFIG();
     try {
       const saved = JSON.parse(localStorage.getItem(AI_LS_KEY) || '{}');
+      const dialSettings = { ...defaults.dialSettings, ...(saved.dialSettings || {}) };
+      if (dialSettings.retellFromNumber === '+886277551098') {
+        dialSettings.retellFromNumber = '+886277449414';
+      }
+      if (dialSettings.retellAgentVersion == null || Number.isFinite(Number(dialSettings.retellAgentVersion))) {
+        dialSettings.retellAgentVersion = 'latest_published';
+      }
       return {
-        ...DEFAULT_AI_CONFIG(),
+        ...defaults,
         ...saved,
-        phoneMap: { ...DEFAULT_AI_CONFIG().phoneMap, ...(saved.phoneMap || {}) },
+        phoneMap: { ...defaults.phoneMap, ...(saved.phoneMap || {}) },
+        dialSettings,
       };
     } catch {
-      return DEFAULT_AI_CONFIG();
+      return defaults;
     }
   }
 
@@ -199,7 +208,7 @@
     const saved = global.state.ai.testDial || {};
     const last = global.state.ai.testDialLast || {};
     const resultText = esc(formatTestCallResult(last));
-    return `<article class="settings-card" style="grid-column:span 2"><h4>測試外撥（手動輸入）</h4><p class="field-hint">不需媒合編號。請填寫<strong>承租人、租賃地址、欠款金額</strong>，AI 會確認姓名與地址並說出欠款。</p><div class="test-dial-grid"><div class="field"><label>房客手機</label><input id="aiTestPhone" value="${esc(saved.phone || '')}" placeholder="09xxxxxxxx"></div><div class="field"><label>承租人</label><input id="aiTestTenant" value="${esc(saved.tenant || '')}" placeholder="房客姓名"></div><div class="field"><label>欠款金額</label><input id="aiTestAmount" type="number" min="0" value="${esc(saved.amount ?? '')}" placeholder="元"></div><div class="field"><label>欠租天數</label><input id="aiTestDays" type="number" min="1" value="${esc(saved.days ?? '')}" placeholder="天"></div><div class="field" style="grid-column:span 2"><label>租賃地址</label><input id="aiTestAddress" value="${esc(saved.address || '')}" placeholder="例：桃園市…"></div></div><div class="field" style="margin-top:12px"><label>測試備註（選填）</label><input id="aiTestNote" value="${esc(saved.note || '')}" placeholder="例：QA 測試，非正式催收"></div><div class="field" style="margin-top:12px"><label>Retell 通話結果</label><textarea id="aiTestCallResult" class="test-call-result" readonly rows="10" placeholder="外撥後會自動顯示 Retell 回傳的 AI 進度、摘要與逐字稿">${resultText}</textarea></div><div class="ai-toolbar" style="margin-top:14px"><button class="btn" type="button" onclick="AiRetell.syncRetellPrompt()">同步 Retell 腳本</button><button class="btn" type="button" onclick="AiRetell.refreshTestCallResult()">查詢通話結果</button><button class="btn teal" type="button" onclick="AiRetell.dialTest()">測試外撥</button></div></article>`;
+    return `<article class="settings-card" style="grid-column:span 2"><h4>測試外撥（手動輸入）</h4><p class="field-hint">不需媒合編號。請填寫<strong>承租人、租賃地址、欠款金額</strong>，AI 會確認姓名與地址並說出欠款。</p><div class="test-dial-grid"><div class="field"><label>房客手機</label><input id="aiTestPhone" value="${esc(saved.phone || '')}" placeholder="09xxxxxxxx"></div><div class="field"><label>承租人</label><input id="aiTestTenant" value="${esc(saved.tenant || '')}" placeholder="房客姓名"></div><div class="field"><label>欠款金額</label><input id="aiTestAmount" type="number" min="0" value="${esc(saved.amount ?? '')}" placeholder="元"></div><div class="field"><label>欠租天數</label><input id="aiTestDays" type="number" min="1" value="${esc(saved.days ?? '')}" placeholder="天"></div><div class="field" style="grid-column:span 2"><label>租賃地址</label><input id="aiTestAddress" value="${esc(saved.address || '')}" placeholder="例：桃園市…"></div></div><div class="field" style="margin-top:12px"><label>測試備註（選填）</label><input id="aiTestNote" value="${esc(saved.note || '')}" placeholder="例：QA 測試，非正式催收"></div><div class="field" style="margin-top:12px"><label>Retell 通話結果</label><textarea id="aiTestCallResult" class="test-call-result" readonly rows="18" placeholder="外撥後會顯示摘要與詳細（含逐字稿）">${resultText}</textarea></div><div class="ai-toolbar" style="margin-top:14px"><button class="btn" type="button" onclick="AiRetell.syncRetellPrompt()">同步 Retell 腳本</button><button class="btn" type="button" onclick="AiRetell.refreshTestCallResult()">查詢通話結果</button><button class="btn teal" type="button" onclick="AiRetell.dialTest()">測試外撥</button></div></article>`;
   }
 
   function readTestDialForm() {
@@ -232,6 +241,24 @@
     saveAiConfig();
   }
 
+  function transcriptLines(transcript) {
+    if (!transcript) return [];
+    if (typeof transcript === 'string') {
+      return transcript.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+    }
+    if (!Array.isArray(transcript)) return [String(transcript)];
+    return transcript
+      .map((t) => {
+        if (typeof t === 'string') return t.trim();
+        const role = t.role || t.type || '';
+        const text = String(t.content || t.text || '').trim();
+        if (!text) return '';
+        const label = /agent/i.test(role) ? 'AI' : /user/i.test(role) ? '房客' : role || '對話';
+        return `${label}：${text}`;
+      })
+      .filter(Boolean);
+  }
+
   function formatTestCallResult(last) {
     if (!last?.matchId && !last?.callId && !last?.result) {
       return '尚無測試通話結果。外撥完成後會自動查詢 Retell 回傳。';
@@ -245,7 +272,31 @@
       return lines.join('\n');
     }
     const log = r.aiLogs?.[0] || {};
-    return log.summary || r.summary || r.ai_progress || '—';
+    const summary = log.summary || r.summary || r.ai_progress || '—';
+    const lines = transcriptLines(log.transcript);
+    const detail = [
+      `接通：${log.connected === false ? '否' : log.connected === true ? '是' : '—'}`,
+      `進度：${log.ai_progress || r.ai_progress || '—'}`,
+      `預計還款：${log.repay_date || r.repay_date || '—'}`,
+      `下一步：${log.next_action || r.next_action || '—'}`,
+      `通話秒數：${log.duration_seconds != null ? log.duration_seconds : '—'}`,
+      `來電／去電：${log.from || '—'} → ${log.to || '—'}`,
+      `Call ID：${log.call_id || last.callId || '—'}`,
+      `測試編號：${r.match_id || last.matchId || '—'}`,
+      `時間：${log.at || r.updated_at || last.at || '—'}`,
+    ];
+    const out = [
+      '【摘要】',
+      summary,
+      '',
+      '【詳細】',
+      ...detail,
+      '',
+      '【逐字稿】',
+      ...(lines.length ? lines : ['（尚無逐字稿）']),
+    ];
+    if (last.pollStatus) out.unshift(`查詢狀態：${last.pollStatus}`, '');
+    return out.join('\n');
   }
 
   function updateTestCallResultUi() {
@@ -405,7 +456,7 @@
       return;
     }
     const d = global.state.ai.dialSettings;
-    global.$('aisettings').innerHTML = `<div class="view-head"><div><h3>AI 撥打頻率設定</h3><p>同步至 Cloudflare Worker</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.test()">測試連線</button><button class="btn primary" onclick="AiRetell.saveSettings()">儲存並同步</button></div></div>${autoDialBannerHtml()}<div class="settings-grid">${renderTestDialCard(esc)}<article class="settings-card"><h4>Cloudflare / Retell</h4><div class="field"><label>Worker URL</label><input id="aiMiddlewareUrl" value="${esc(global.state.ai.middlewareUrl)}"></div><div class="field"><label>from_number</label><input id="aiFromNumber" value="${esc(d.retellFromNumber || '')}"></div><div class="field"><label>Agent ID</label><input id="aiAgentId" value="${esc(d.retellAgentId || '')}"></div><div class="field"><label>Agent 版本</label><input id="aiAgentVersion" type="number" min="1" value="${esc(d.retellAgentVersion ?? 31)}"></div></article><article class="settings-card"><h4>每日撥打頻率</h4><div class="field"><label>每案每日上限</label><input id="aiDailyPerCase" type="number" min="1" value="${d.dailyMaxPerCase}"></div><div class="field"><label>全系統每日上限</label><input id="aiDailyTotal" type="number" min="1" value="${d.dailyMaxTotal}"></div><div class="field"><label>每案累計上限</label><input id="aiLifetime" type="number" min="1" value="${d.lifetimeMaxPerCase}"></div><div class="field"><label>AI 階段（天）</label><div style="display:flex;gap:8px"><input id="aiStageMin" type="number" value="${d.stageMinDays}"><span>～</span><input id="aiStageMax" type="number" value="${d.stageMaxDays}"></div></div><div class="field"><label>撥打時段</label><div style="display:flex;gap:8px"><input id="aiHourStart" type="number" value="${d.callHourStart}"><span>～</span><input id="aiHourEnd" type="number" value="${d.callHourEnd}"></div></div><label class="check-row"><input id="aiWeekdays" type="checkbox" ${d.callWeekdaysOnly ? 'checked' : ''}> 僅平日</label></article><article class="settings-card" style="grid-column:span 2"><h4>手機對照（編號=手機）</h4><p class="field-hint">同步載入時會自動從星鴻房客資料寫入；亦可手動覆寫。</p><div class="field"><textarea id="aiPhoneMap">${esc(Object.entries(global.state.ai.phoneMap).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea></div></article></div>`;
+    global.$('aisettings').innerHTML = `<div class="view-head"><div><h3>AI 撥打頻率設定</h3><p>同步至 Cloudflare Worker</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.test()">測試連線</button><button class="btn primary" onclick="AiRetell.saveSettings()">儲存並同步</button></div></div>${autoDialBannerHtml()}<div class="settings-grid">${renderTestDialCard(esc)}<article class="settings-card"><h4>Cloudflare / Retell</h4><div class="field"><label>Worker URL</label><input id="aiMiddlewareUrl" value="${esc(global.state.ai.middlewareUrl)}"></div><div class="field"><label>from_number</label><input id="aiFromNumber" value="${esc(d.retellFromNumber || '')}"></div><div class="field"><label>Agent ID</label><input id="aiAgentId" value="${esc(d.retellAgentId || '')}"></div><div class="field"><label>Agent 版本</label><select id="aiAgentVersion"><option value="latest_published" ${String(d.retellAgentVersion) === 'latest_published' || d.retellAgentVersion == null ? 'selected' : ''}>自動：Retell 最新已發布版</option></select><p class="field-hint">你在 Retell 後台發布新版本後，下一通外撥會自動用新版，不必再回這裡改。</p></div></article><article class="settings-card"><h4>每日撥打頻率</h4><div class="field"><label>每案每日上限</label><input id="aiDailyPerCase" type="number" min="1" value="${d.dailyMaxPerCase}"></div><div class="field"><label>全系統每日上限</label><input id="aiDailyTotal" type="number" min="1" value="${d.dailyMaxTotal}"></div><div class="field"><label>每案累計上限</label><input id="aiLifetime" type="number" min="1" value="${d.lifetimeMaxPerCase}"></div><div class="field"><label>AI 階段（天）</label><div style="display:flex;gap:8px"><input id="aiStageMin" type="number" value="${d.stageMinDays}"><span>～</span><input id="aiStageMax" type="number" value="${d.stageMaxDays}"></div></div><div class="field"><label>撥打時段</label><div style="display:flex;gap:8px"><input id="aiHourStart" type="number" value="${d.callHourStart}"><span>～</span><input id="aiHourEnd" type="number" value="${d.callHourEnd}"></div></div><label class="check-row"><input id="aiWeekdays" type="checkbox" ${d.callWeekdaysOnly ? 'checked' : ''}> 僅平日</label></article><article class="settings-card" style="grid-column:span 2"><h4>手機對照（編號=手機）</h4><p class="field-hint">同步載入時會自動從星鴻房客資料寫入；亦可手動覆寫。</p><div class="field"><textarea id="aiPhoneMap">${esc(Object.entries(global.state.ai.phoneMap).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea></div></article></div>`;
   }
 
   function readAiSettingsForm() {
@@ -414,7 +465,7 @@
       ...global.state.ai.dialSettings,
       retellFromNumber: global.$('aiFromNumber').value.trim(),
       retellAgentId: global.$('aiAgentId').value.trim(),
-      retellAgentVersion: Math.max(1, +(global.$('aiAgentVersion')?.value || 31)),
+      retellAgentVersion: global.$('aiAgentVersion')?.value || 'latest_published',
       dailyMaxPerCase: Math.max(1, +(global.$('aiDailyPerCase').value || 3)),
       dailyMaxTotal: Math.max(1, +(global.$('aiDailyTotal').value || 50)),
       lifetimeMaxPerCase: Math.max(1, +(global.$('aiLifetime').value || 12)),
