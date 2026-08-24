@@ -295,7 +295,7 @@
         const st = collectionStage(c.maxDays);
         const ar = aiResultOf(c.caseId);
         const ph = phoneOfCase(c);
-        return `<tr><td class="left"><span class="stage-tag s${st.id}">${st.label}</span></td><td>${fmt(c.maxDays)}</td><td class="left"><b>${esc(c.caseId)}</b></td><td class="left">${esc(c.tenant || '—')}</td><td class="left">${ph ? esc(ph) : '<span class="phone-missing">缺手機</span>'}</td><td class="amount down">${moneyFmt(c.amount)}</td><td class="left"><div class="ai-progress">${esc(ar?.ai_progress || c.aiProgress || '—')}</div></td><td class="left"><button class="btn btn-sm" onclick="AiRetell.dialOne('${esc(c.caseId)}',false)">外撥</button></td></tr>`;
+        return `<tr><td class="left"><span class="stage-tag s${st.id}">${st.label}</span></td><td>${fmt(c.maxDays)}</td><td class="left"><b>${esc(c.caseId)}</b></td><td class="left">${esc(c.tenant || '—')}</td><td class="left">${ph ? esc(ph) : '<span class="phone-missing">缺手機</span>'}</td><td class="amount down">${moneyFmt(c.amount)}</td><td class="left"><div class="ai-progress">${esc(ar?.ai_progress || '—')}</div></td><td class="left"><button class="btn btn-sm" onclick="AiRetell.dialOne('${esc(c.caseId)}',false)">外撥</button></td></tr>`;
       })
       .join('') || '<tr><td colspan="8" class="left">目前沒有 AI 階段案件</td></tr>'}</tbody></table></div></article>`;
   }
