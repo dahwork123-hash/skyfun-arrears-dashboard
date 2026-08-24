@@ -354,6 +354,9 @@
     if (!apiBase()) throw new Error('請填寫中間層 URL');
     const phone = normalizePhone(form.phone);
     if (!phone) throw new Error('請輸入房客手機');
+    if (!String(form.tenant || '').trim()) throw new Error('請輸入承租人姓名（AI 會確認姓名）');
+    if (!String(form.address || '').trim()) throw new Error('請輸入租賃地址（AI 會完整唸出並確認）');
+    if (!(Number(form.amount) > 0)) throw new Error('請輸入欠款金額（AI 會說出金額）');
     const matchId = makeTestMatchId(phone);
     return apiFetch('/api/calls/dispatch', {
       method: 'POST',
@@ -499,9 +502,13 @@
       try {
         readAiSettingsForm();
         const r = await apiFetch('/api/retell/sync-prompt', { method: 'POST', body: '{}' });
-        const hint = r.engine_type === 'conversation-flow'
-          ? `Conversation Flow｜${r.conversation_flow_id || 'OK'}`
-          : `${r.llm_id || r.agent_id || 'OK'}`;
+        const voice = r.voice?.voice_name || r.voice?.voice_id || '';
+        const model = r.llm_model || '';
+        const hint = [model && `模型 ${model}`, voice && `語音 ${voice}`].filter(Boolean).join('｜')
+          || r.conversation_flow_id
+          || r.llm_id
+          || r.agent_id
+          || 'OK';
         global.toast(`Retell 腳本已同步｜${hint}`);
       } catch (err) {
         global.toast(err.message || '同步 Retell 腳本失敗');
