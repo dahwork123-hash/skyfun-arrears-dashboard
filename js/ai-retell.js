@@ -231,51 +231,20 @@
     saveAiConfig();
   }
 
-  function transcriptToText(transcript) {
-    if (!transcript) return '';
-    if (typeof transcript === 'string') return transcript;
-    if (Array.isArray(transcript)) {
-      return transcript
-        .map((t) => {
-          if (typeof t === 'string') return t;
-          const role = t.role || t.type || '';
-          const text = t.content || t.text || '';
-          return role ? `${role}: ${text}` : text;
-        })
-        .filter(Boolean)
-        .join('\n');
-    }
-    return String(transcript);
-  }
-
   function formatTestCallResult(last) {
     if (!last?.matchId && !last?.callId && !last?.result) {
       return '尚無測試通話結果。外撥完成後會自動查詢 Retell 回傳。';
     }
-    const lines = [];
-    if (last.matchId) lines.push(`測試編號：${last.matchId}`);
-    if (last.callId) lines.push(`Call ID：${last.callId}`);
-    if (last.pollStatus) lines.push(`查詢狀態：${last.pollStatus}`);
     const r = last.result;
-    if (r) {
-      const log = r.aiLogs?.[0] || {};
-      if (log.call_id && log.call_id !== last.callId) lines.push(`Retell Call ID：${log.call_id}`);
-      if (log.connected != null) lines.push(`是否接通：${log.connected ? '是' : '否'}`);
-      lines.push(`AI 進度：${r.ai_progress || log.ai_progress || '—'}`);
-      lines.push(`風險：${r.risk || log.risk || '—'}`);
-      lines.push(`預計還款：${r.repay_date || log.repay_date || '—'}`);
-      lines.push(`下一步：${r.next_action || log.next_action || '—'}`);
-      lines.push(`摘要：${log.summary || '—'}`);
-      const transcript = transcriptToText(log.transcript);
-      if (transcript) {
-        lines.push('');
-        lines.push('逐字稿：');
-        lines.push(transcript);
-      }
-      lines.push('');
-      lines.push(`更新時間：${r.updated_at || log.at || '—'}`);
+    if (!r) {
+      const lines = [];
+      if (last.matchId) lines.push(`測試編號：${last.matchId}`);
+      if (last.callId) lines.push(`Call ID：${last.callId}`);
+      if (last.pollStatus) lines.push(`查詢狀態：${last.pollStatus}`);
+      return lines.join('\n');
     }
-    return lines.join('\n');
+    const log = r.aiLogs?.[0] || {};
+    return log.summary || r.summary || r.ai_progress || '—';
   }
 
   function updateTestCallResultUi() {
