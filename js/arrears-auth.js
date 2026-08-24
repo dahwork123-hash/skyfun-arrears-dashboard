@@ -103,6 +103,7 @@
     if (logoutBtn) logoutBtn.style.display = 'inline-block';
     if (meta) meta.textContent = `${name} · 正在載入資料…`;
     document.dispatchEvent(new CustomEvent('skyfun-auth-ready', { detail: { user: session.user } }));
+    if (typeof window.loadDailyData === 'function') window.loadDailyData(false);
   }
 
   function lockApp() {
