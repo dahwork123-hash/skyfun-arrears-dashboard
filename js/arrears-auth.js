@@ -94,11 +94,14 @@
     ready = true;
     const label = $('authUserLabel');
     const logoutBtn = $('authLogoutBtn');
+    const meta = document.getElementById('sourceMeta');
+    const name = session?.user?.name || session?.user?.username || '已登入';
     if (label && session?.user) {
-      label.textContent = session.user.name || session.user.username || '已登入';
+      label.textContent = name;
       label.style.display = 'inline';
     }
     if (logoutBtn) logoutBtn.style.display = 'inline-block';
+    if (meta) meta.textContent = `${name} · 正在同步星鴻…`;
     document.dispatchEvent(new CustomEvent('skyfun-auth-ready', { detail: { user: session.user } }));
   }
 
