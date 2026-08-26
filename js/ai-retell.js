@@ -21,7 +21,7 @@
       autoDispatchEnabled: false,
       stageMinDays: 4,
       stageMaxDays: 7,
-      retellFromNumber: '+886277449414',
+      retellFromNumber: '+886277551098',
       retellAgentId: 'agent_937afc9495880b262fe9cf5bf8',
       retellAgentVersion: 'latest_published',
     },
@@ -32,8 +32,8 @@
     try {
       const saved = JSON.parse(localStorage.getItem(AI_LS_KEY) || '{}');
       const dialSettings = { ...defaults.dialSettings, ...(saved.dialSettings || {}) };
-      if (dialSettings.retellFromNumber === '+886277551098') {
-        dialSettings.retellFromNumber = '+886277449414';
+      if (dialSettings.retellFromNumber === '+886277449414') {
+        dialSettings.retellFromNumber = '+886277551098';
       }
       if (dialSettings.retellAgentVersion == null || Number.isFinite(Number(dialSettings.retellAgentVersion))) {
         dialSettings.retellAgentVersion = 'latest_published';
