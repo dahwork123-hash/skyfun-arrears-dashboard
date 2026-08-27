@@ -12,9 +12,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./js/supabase-config.js"></script>
   <script src="./js/arrears-auth.js?v=20260824e"></script>
-  <script src="./config.js?v=20260827b"></script>
+  <script src="./config.js?v=20260827c"></script>
   <script src="./js/lal-letter-templates.js"></script>
-  <script src="./js/doc-generators.js?v=20260827b"></script>
+  <script src="./js/doc-generators.js?v=20260827c"></script>
   <script src="./js/ai-retell.js?v=20260826a"></script>
   <style>
     :root{--bg:#f4f7fb;--panel:#fff;--ink:#152238;--muted:#6d7b90;--line:#dfe6f0;--nav:#10243f;--nav2:#193654;--blue:#2563eb;--teal:#0f9f8f;--amber:#d97706;--orange:#ea580c;--red:#dc2626;--shadow:0 12px 34px rgba(27,44,75,.08)}
@@ -117,7 +117,7 @@
     <input id="arrears-auth-password" type="password" maxlength="72" autocomplete="current-password" placeholder="密碼">
     <button type="button" id="arrears-auth-submit">進入系統</button>
     <p id="arrears-auth-msg" style="display:none"></p>
-    <p class="arrears-auth-foot">與 <a href="https://dahwork123-hash.github.io/skyfun-toolbox-pages/" target="_blank" rel="noopener">星鴻工具箱</a> 共用帳號<br>資料僅供內部追蹤，請勿外流</p>
+    <p class="arrears-auth-foot">與 <a href="https://toolbox.skyfunsystem.com/" target="_blank" rel="noopener">星鴻工具箱</a> 共用帳號<br>資料僅供內部追蹤，請勿外流</p>
   </div>
 </div>
 <div class="app">
@@ -246,7 +246,7 @@
 <div class="toast" id="toast"></div>
 <script src="./js/enforcement-petition-regions.js"></script>
 <script src="./js/enforcement-petition-draw.js"></script>
-<script src="./js/enforcement-petition.js?v=20260827b"></script>
+<script src="./js/enforcement-petition.js?v=20260827c"></script>
 <script>
 const REQUIRED=['催收狀態','委託類型','媒合/轉租編號','物件縣市','租賃地址','欠租天數','應收款日','租金','應收金額','實收款日','實收金額','欠款金額','承租人','代管營業處','代管人員','催收備註'];
 const OFFICE_REGION_MAP={'北一處':'北區','北二處':'北區','北三處':'北區','北四處':'北區','宜一處':'北區','基一處':'北區','桃一處':'桃園區','中一處':'中區','中二處':'中區','中三處':'中區','中四處':'中區','中五處':'中區','中六處':'中區','竹一處':'中區','彰一處':'中區','嘉一處':'中區','南一處':'台南區','高一處':'高雄區','高二處':'高雄區','業務支援管理部':'業務支援管理部'};

@@ -8,7 +8,7 @@
   const ASSET_BASE = String(
     global.TOOLBOX_ASSET_BASE ||
     global.TOOLBOX_PAGES_URL ||
-    'https://cdn.jsdelivr.net/gh/dahwork123-hash/skyfun-toolbox-pages@main/'
+    'https://toolbox.skyfunsystem.com/'
   ).replace(/\/?$/, '/');
   const FONT_URL = ASSET_BASE + 'assets/lal/TW-Kai-98_1.ttf';
   const FONT_MANIFEST = ASSET_BASE + 'js/lal-font/manifest.js';

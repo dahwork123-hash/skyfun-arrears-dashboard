@@ -43,7 +43,7 @@
         const explicit = window.TOOLBOX_ASSET_BASE;
         if (explicit) return String(explicit).replace(/\/?$/, '/');
         // Pages 常因未發布而 404；字型改走 jsDelivr（倉庫 main）
-        return 'https://cdn.jsdelivr.net/gh/dahwork123-hash/skyfun-toolbox-pages@main/';
+        return 'https://toolbox.skyfunsystem.com/';
     }
 
     function resolveAssetUrl(path) {
