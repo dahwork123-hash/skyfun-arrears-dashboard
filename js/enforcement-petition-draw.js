@@ -20,7 +20,7 @@
         hdr: 12,
         hdrSm: 10,
         body: 14,
-        amount: 13,
+        amount: 16,
         p2Title: 16,
         p2Hdr: 15,
         p2Body: 14
@@ -197,13 +197,13 @@
     function drawAmountInCell(c, amountCN, x1, x2, yHigh, yLow) {
         const { fonts, page, black } = c;
         const text = `新台幣${amountCN || '零元整'}`;
-        const padX = 6;
+        const padX = 8;
         const left = x1 + padX;
         const maxW = x2 - left - padX;
         const cellH = yHigh - yLow;
         if (cellH <= 0 || maxW <= 0) return;
         let size = SZ.amount;
-        const minSize = 9;
+        const minSize = 12;
         while (size > minSize && widthOfMixed(text, size, fonts) > maxW) size -= 1;
         const w = widthOfMixed(text, size, fonts);
         const x = left + Math.max(0, (maxW - w) / 2);
@@ -332,12 +332,14 @@
         textCenter(d.division, caseC2, R, caseValueY2, SZ.body, 4);
 
         // 訴訟標的金額列（titleBottom ～ amountBottom）
+        // 標籤欄縮窄，金額欄加寬以便完整顯示大字金額
         const amtH = titleBottom - amountBottom;
+        const amountSplit = L + 148;
         rect(L, amountBottom, TW, amtH);
-        vline(cx[5], amountBottom, titleBottom);
+        vline(amountSplit, amountBottom, titleBottom);
         const amtY = amountBottom + amtH * 0.38;
-        textCenter('訴訟標的金額或價額', L, cx[5], amtY, SZ.hdr);
-        drawAmountInCell(c, d.amountCN, cx[5], R, titleBottom, amountBottom);
+        textCenter('訴訟標的金額或價額', L, amountSplit, amtY, SZ.hdr);
+        drawAmountInCell(c, d.amountCN, amountSplit, R, titleBottom, amountBottom);
 
         // 當事人欄位表頭列（amountBottom ～ hdrBottom）
         rect(L, hdrBottom, TW, amountBottom - hdrBottom);
