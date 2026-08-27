@@ -5,8 +5,14 @@
 (function (global) {
   'use strict';
 
-  const ASSET_BASE = String(global.TOOLBOX_PAGES_URL || 'https://dahwork123-hash.github.io/skyfun-toolbox-pages/').replace(/\/?$/, '/');
+  const ASSET_BASE = String(
+    global.TOOLBOX_ASSET_BASE ||
+    global.TOOLBOX_PAGES_URL ||
+    'https://cdn.jsdelivr.net/gh/dahwork123-hash/skyfun-toolbox-pages@main/'
+  ).replace(/\/?$/, '/');
   const FONT_URL = ASSET_BASE + 'assets/lal/TW-Kai-98_1.ttf';
+  const FONT_MANIFEST = ASSET_BASE + 'js/lal-font/manifest.js';
+  const FONT_PART_PREFIX = ASSET_BASE + 'js/lal-font/part-';
   const TEMPLATE_URL = ASSET_BASE + 'assets/lal/tw_lal.pdf';
 
   const PDF_INCH = 72;
@@ -255,12 +261,40 @@
     return pdfReadyPromise;
   }
 
+  function base64ToArrayBuffer(b64) {
+    const bin = atob(b64);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  }
+
+  async function loadEmbeddedFontBytes() {
+    if (!global.LAL_FONT_PART_COUNT) {
+      await loadScript(FONT_MANIFEST);
+    }
+    const total = global.LAL_FONT_PART_COUNT;
+    if (!total) throw new Error('找不到內嵌字型（js/lal-font）');
+    global.LAL_FONT_PARTS = global.LAL_FONT_PARTS || [];
+    for (let i = global.LAL_FONT_PARTS.length; i < total; i++) {
+      await loadScript(FONT_PART_PREFIX + String(i).padStart(3, '0') + '.js');
+    }
+    return base64ToArrayBuffer(global.LAL_FONT_PARTS.join(''));
+  }
+
   async function getFontBytes() {
     if (!fontBytesPromise) {
-      fontBytesPromise = fetch(FONT_URL).then((r) => {
-        if (!r.ok) throw new Error('無法載入字型');
-        return r.arrayBuffer();
-      });
+      fontBytesPromise = (async () => {
+        try {
+          return await loadEmbeddedFontBytes();
+        } catch (embedErr) {
+          try {
+            const r = await fetch(FONT_URL);
+            if (r.ok) return r.arrayBuffer();
+          } catch { /* ignore */ }
+          fontBytesPromise = null;
+          throw new Error('無法載入字型：' + (embedErr && embedErr.message ? embedErr.message : embedErr));
+        }
+      })();
     }
     return fontBytesPromise;
   }

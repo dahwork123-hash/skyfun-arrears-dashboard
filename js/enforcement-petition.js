@@ -39,12 +39,17 @@
             .replace(/"/g, '&quot;');
     }
 
+    function toolboxAssetBase() {
+        const explicit = window.TOOLBOX_ASSET_BASE;
+        if (explicit) return String(explicit).replace(/\/?$/, '/');
+        // Pages 常因未發布而 404；字型改走 jsDelivr（倉庫 main）
+        return 'https://cdn.jsdelivr.net/gh/dahwork123-hash/skyfun-toolbox-pages@main/';
+    }
+
     function resolveAssetUrl(path) {
         const clean = path.replace(/^\.\//, '');
-        const toolbox = String(window.TOOLBOX_PAGES_URL || 'https://dahwork123-hash.github.io/skyfun-toolbox-pages/').replace(/\/?$/, '/');
-        // 儀表板從工具箱載入字型／內嵌字型分片
         if (/^(assets\/lal\/|js\/lal-font\/)/.test(clean)) {
-            return toolbox + clean;
+            return toolboxAssetBase() + clean;
         }
         return new URL(clean, document.baseURI).href;
     }
@@ -84,11 +89,17 @@
     async function getFontBytes() {
         if (!fontBytesPromise) {
             fontBytesPromise = (async () => {
+                // TTF 在 CDN 可能被擋（403）；優先用內嵌分片（js/lal-font）
                 try {
-                    const r = await fetch(resolveAssetUrl(FONT_PATH));
-                    if (r.ok) return r.arrayBuffer();
-                } catch { /* fallback */ }
-                return loadEmbeddedFontBytes();
+                    return await loadEmbeddedFontBytes();
+                } catch (embedErr) {
+                    try {
+                        const r = await fetch(resolveAssetUrl(FONT_PATH));
+                        if (r.ok) return r.arrayBuffer();
+                    } catch { /* ignore */ }
+                    fontBytesPromise = null;
+                    throw embedErr;
+                }
             })();
         }
         return fontBytesPromise;

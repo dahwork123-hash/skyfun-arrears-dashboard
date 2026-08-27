@@ -7,5 +7,6 @@ window.ARREARS_DATA_URL_FALLBACK = 'https://dahwork123-hash.github.io/skyfun-arr
 window.ARREARS_SYNC_TIMEOUT_SEC = 90;
 /** 開啟頁面時每隔幾分鐘自動重新載入（0 = 關閉） */
 window.AUTO_REFRESH_MINUTES = 15;
-/** 存證信函字型／郵局範本資源（由工具箱 Pages 提供） */
+/** 存證信函字型／郵局範本資源（工具箱 GitHub 倉庫；Pages 若 404 則用 jsDelivr） */
 window.TOOLBOX_PAGES_URL = 'https://dahwork123-hash.github.io/skyfun-toolbox-pages/';
+window.TOOLBOX_ASSET_BASE = 'https://cdn.jsdelivr.net/gh/dahwork123-hash/skyfun-toolbox-pages@main/';
