@@ -8,6 +8,58 @@
     { id: 4, label: '15+ 天 存證', min: 15, max: Infinity },
   ];
 
+  const AI_SETTINGS_UNLOCK_KEY = 'arrears_ai_settings_unlocked';
+  const AI_SETTINGS_PASSWORD = '85103034';
+
+  function isSettingsUnlocked() {
+    try {
+      return sessionStorage.getItem(AI_SETTINGS_UNLOCK_KEY) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function unlockSettingsPassword(password) {
+    if (String(password || '') !== AI_SETTINGS_PASSWORD) return false;
+    try {
+      sessionStorage.setItem(AI_SETTINGS_UNLOCK_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    return true;
+  }
+
+  function defaultCallSlots(count, start = 9, end = 17) {
+    const n = Math.max(1, Number(count) || 3);
+    const slots = [];
+    for (let i = 0; i < n; i++) {
+      const hour = n === 1 ? start : start + Math.floor(((end - start) * i) / (n - 1));
+      slots.push({ hour, minute: 0 });
+    }
+    return slots;
+  }
+
+  function normalizeCallSlots(settings = {}) {
+    const n = Math.max(1, Number(settings.dailyMaxPerCase) || 3);
+    const start = Number(settings.callHourStart) || 9;
+    const end = Number(settings.callHourEnd) || 17;
+    const defaults = defaultCallSlots(n, start, end);
+    let slots = Array.isArray(settings.callSlots) ? settings.callSlots : [];
+    while (slots.length < n) slots.push(defaults[slots.length] || { hour: start, minute: 0 });
+    return slots.slice(0, n).map((s, i) => ({
+      hour: Math.min(23, Math.max(0, Number(s?.hour ?? defaults[i]?.hour ?? start) || 0)),
+      minute: Math.min(59, Math.max(0, Number(s?.minute ?? defaults[i]?.minute ?? 0) || 0)),
+    }));
+  }
+
+  function formatCallSlot(s) {
+    return `${String(s.hour).padStart(2, '0')}:${String(s.minute).padStart(2, '0')}`;
+  }
+
+  function callSlotsSummary(settings = {}) {
+    return normalizeCallSlots(settings).map((s, i) => `第${i + 1}通 ${formatCallSlot(s)}`).join('、');
+  }
+
   const DEFAULT_AI_CONFIG = () => ({
     middlewareUrl: 'https://ai-collection-api.dahwork123.workers.dev',
     phoneMap: {},
@@ -18,6 +70,8 @@
       callHourStart: 9,
       callHourEnd: 17,
       callWeekdaysOnly: true,
+      callSlotToleranceMin: 30,
+      callSlots: defaultCallSlots(3, 9, 17),
       autoDispatchEnabled: false,
       stageMinDays: 4,
       stageMaxDays: 7,
@@ -38,6 +92,7 @@
       if (dialSettings.retellAgentVersion == null || Number.isFinite(Number(dialSettings.retellAgentVersion))) {
         dialSettings.retellAgentVersion = 'latest_published';
       }
+      dialSettings.callSlots = normalizeCallSlots(dialSettings);
       return {
         ...defaults,
         ...saved,
@@ -436,15 +491,54 @@
     const batchBtns = autoOn
       ? `<button class="btn teal" onclick="AiRetell.dialBatch(false)">批次外撥</button><button class="btn warn" onclick="AiRetell.dialBatch(true)">強制外撥</button>`
       : `<button class="btn" disabled title="請先開啟自動撥號">批次外撥（已鎖定）</button>`;
-    global.$('collection').innerHTML = `${autoDialBannerHtml()}<div class="view-head"><div><h3>AI 電話催收</h3><p>${s.stageMinDays}～${s.stageMaxDays} 天案件；每案每日 ${s.dailyMaxPerCase} 次；時段 ${s.callHourStart}:00–${s.callHourEnd}:00</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.syncResults().then(()=>{render();toast('已同步 AI 結果')}).catch(e=>toast(e.message))">同步 AI 結果</button>${batchBtns}<button class="btn" onclick="switchView('aisettings')">調整頻率</button></div></div><div class="ai-kpis"><div class="ai-kpi"><small>AI 階段案件</small><b>${fmt(eligible.length)}</b></div><div class="ai-kpi"><small>已有手機</small><b>${fmt(withPhone.length)}</b></div><div class="ai-kpi"><small>缺手機</small><b class="down">${fmt(missing)}</b></div><div class="ai-kpi"><small>已有 AI 紀錄</small><b>${fmt(results.length)}</b></div></div><article class="panel"><div class="panel-hd"><h3>待 AI 催收清單</h3></div><div class="table-wrap"><table class="data-table"><thead><tr><th class="left">階段</th><th>天數</th><th class="left">編號</th><th class="left">承租人</th><th class="left">手機</th><th>欠款</th><th class="left">AI 進度</th><th class="left">操作</th></tr></thead><tbody>${eligible
+    global.$('collection').innerHTML = `${autoDialBannerHtml()}<div class="view-head"><div><h3>AI 電話催收</h3><p>${s.stageMinDays}～${s.stageMaxDays} 天案件；每案每日 ${s.dailyMaxPerCase} 次；${callSlotsSummary(s)}；整體 ${s.callHourStart}:00–${s.callHourEnd}:00</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.syncResults().then(()=>{render();toast('已同步 AI 結果')}).catch(e=>toast(e.message))">同步 AI 結果</button>${batchBtns}<button class="btn" onclick="switchView('aisettings')">調整頻率</button></div></div><div class="ai-kpis"><div class="ai-kpi"><small>AI 階段案件</small><b>${fmt(eligible.length)}</b></div><div class="ai-kpi"><small>已有手機</small><b>${fmt(withPhone.length)}</b></div><div class="ai-kpi"><small>缺手機</small><b class="down">${fmt(missing)}</b></div><div class="ai-kpi"><small>已有 AI 紀錄</small><b>${fmt(results.length)}</b></div></div><article class="panel"><div class="panel-hd"><h3>待 AI 催收清單</h3></div><div class="table-wrap"><table class="data-table"><thead><tr><th class="left">階段</th><th>天數</th><th class="left">編號</th><th class="left">承租人</th><th class="left">手機</th><th>欠款</th><th class="left">AI 進度</th><th class="left">操作</th></tr></thead><tbody>${eligible
       .sort((a, b) => b.maxDays - a.maxDays || b.amount - a.amount)
       .map((c) => {
         const st = collectionStage(c.maxDays);
         const ar = aiResultOf(c.caseId);
         const ph = phoneOfCase(c);
-        return `<tr><td class="left"><span class="stage-tag s${st.id}">${st.label}</span></td><td>${fmt(c.maxDays)}</td><td class="left"><b>${esc(c.caseId)}</b></td><td class="left">${esc(c.tenant || '—')}</td><td class="left">${ph ? esc(ph) : '<span class="phone-missing">缺手機</span>'}</td><td class="amount down">${moneyFmt(c.amount)}</td><td class="left"><div class="ai-progress">${esc(ar?.ai_progress || '—')}</div></td><td class="left"><button class="btn btn-sm" onclick="AiRetell.dialOne('${esc(c.caseId)}',false)">外撥</button></td></tr>`;
+        return `<tr><td class="left"><span class="stage-tag s${st.id}">${st.label}</span></td><td>${fmt(c.maxDays)}</td><td class="left"><b>${esc(c.caseId)}</b></td><td class="left">${esc(c.tenant || '—')}</td><td class="left">${ph ? esc(ph) : '<span class="phone-missing">缺手機</span>'}</td><td class="amount down">${moneyFmt(c.amount)}</td><td class="left"><div class="ai-progress">${esc(ar?.ai_progress || '—')}</div></td><td class="left"><button class="btn btn-sm" onclick="AiRetell.dialOne('${esc(c.caseId)}',true)">外撥</button></td></tr>`;
       })
       .join('') || '<tr><td colspan="8" class="left">目前沒有 AI 階段案件</td></tr>'}</tbody></table></div></article>`;
+  }
+
+  function renderSettingsPasswordGate() {
+    return `<div class="ai-settings-gate"><div class="ai-settings-gate-card"><h3>AI 撥打設定</h3><p>此頁面含外撥頻率與 Retell 設定，請輸入管理密碼後進入。</p><input id="aiSettingsPassword" type="password" maxlength="32" placeholder="管理密碼" autocomplete="off" onkeydown="if(event.key==='Enter')AiRetell.submitSettingsPassword()"><button type="button" onclick="AiRetell.submitSettingsPassword()">進入設定</button><div class="ai-settings-gate-msg" id="aiSettingsGateMsg"></div></div></div>`;
+  }
+
+  function renderCallSlotsSection(d) {
+    const slots = normalizeCallSlots(d);
+    const rows = slots
+      .map(
+        (s, i) =>
+          `<div class="call-slot-row"><label>第 ${i + 1} 通</label><input class="ai-call-slot-time" data-index="${i}" type="time" value="${formatCallSlot(s)}"></div>`
+      )
+      .join('');
+    return `<article class="settings-card settings-card-wide"><h4>每通撥打時間</h4><p class="field-hint">依「每案每日上限」設定各通建議撥打時間（台北時區）。自動／批次外撥會在該時間 ± 容許分鐘內執行；測試外撥與強制外撥不受此限制。</p><div class="field"><label>時間容許（分鐘）</label><input id="aiSlotTolerance" type="number" min="5" max="120" value="${d.callSlotToleranceMin ?? 30}"></div><div class="call-slots-grid" id="aiCallSlotsGrid">${rows}</div><div class="field" style="margin-top:12px;margin-bottom:0"><label>整體撥打時段（兜底）</label><div style="display:flex;gap:8px;align-items:center"><input id="aiHourStart" type="number" min="0" max="23" value="${d.callHourStart}"><span>～</span><input id="aiHourEnd" type="number" min="1" max="24" value="${d.callHourEnd}"><span style="font-size:12px;color:var(--muted)">時</span></div></div><label class="check-row" style="margin-top:10px"><input id="aiWeekdays" type="checkbox" ${d.callWeekdaysOnly ? 'checked' : ''}> 僅平日撥打</label></article>`;
+  }
+
+  function syncCallSlotInputs() {
+    const daily = Math.max(1, +(global.$('aiDailyPerCase')?.value || global.state.ai.dialSettings.dailyMaxPerCase || 3));
+    const start = Math.min(23, Math.max(0, +(global.$('aiHourStart')?.value || global.state.ai.dialSettings.callHourStart || 9)));
+    const end = Math.min(24, Math.max(1, +(global.$('aiHourEnd')?.value || global.state.ai.dialSettings.callHourEnd || 17)));
+    const grid = global.$('aiCallSlotsGrid');
+    if (!grid) return;
+    const current = [...grid.querySelectorAll('.ai-call-slot-time')].map((el) => {
+      const [h, m] = String(el.value || '09:00').split(':').map(Number);
+      return { hour: h, minute: m };
+    });
+    const next = normalizeCallSlots({
+      dailyMaxPerCase: daily,
+      callHourStart: start,
+      callHourEnd: end,
+      callSlots: current,
+    });
+    grid.innerHTML = next
+      .map(
+        (s, i) =>
+          `<div class="call-slot-row"><label>第 ${i + 1} 通</label><input class="ai-call-slot-time" data-index="${i}" type="time" value="${formatCallSlot(s)}"></div>`
+      )
+      .join('');
   }
 
   function renderAiSettings() {
@@ -455,25 +549,38 @@
       if ($('aisettings')) $('aisettings').innerHTML = '<article class="panel"><div class="panel-body">AI 模組尚未就緒，請重新整理頁面。</div></article>';
       return;
     }
+    if (!isSettingsUnlocked()) {
+      global.$('aisettings').innerHTML = renderSettingsPasswordGate();
+      return;
+    }
     const d = global.state.ai.dialSettings;
-    global.$('aisettings').innerHTML = `<div class="view-head"><div><h3>AI 撥打頻率設定</h3><p>同步至 Cloudflare Worker</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.test()">測試連線</button><button class="btn primary" onclick="AiRetell.saveSettings()">儲存並同步</button></div></div>${autoDialBannerHtml()}<div class="settings-grid">${renderTestDialCard(esc)}<article class="settings-card"><h4>Cloudflare / Retell</h4><div class="field"><label>Worker URL</label><input id="aiMiddlewareUrl" value="${esc(global.state.ai.middlewareUrl)}"></div><div class="field"><label>from_number</label><input id="aiFromNumber" value="${esc(d.retellFromNumber || '')}"></div><div class="field"><label>Agent ID</label><input id="aiAgentId" value="${esc(d.retellAgentId || '')}"></div><div class="field"><label>Agent 版本</label><select id="aiAgentVersion"><option value="latest_published" ${String(d.retellAgentVersion) === 'latest_published' || d.retellAgentVersion == null ? 'selected' : ''}>自動：Retell 最新已發布版</option></select><p class="field-hint">你在 Retell 後台發布新版本後，下一通外撥會自動用新版，不必再回這裡改。</p></div></article><article class="settings-card"><h4>每日撥打頻率</h4><div class="field"><label>每案每日上限</label><input id="aiDailyPerCase" type="number" min="1" value="${d.dailyMaxPerCase}"></div><div class="field"><label>全系統每日上限</label><input id="aiDailyTotal" type="number" min="1" value="${d.dailyMaxTotal}"></div><div class="field"><label>每案累計上限</label><input id="aiLifetime" type="number" min="1" value="${d.lifetimeMaxPerCase}"></div><div class="field"><label>AI 階段（天）</label><div style="display:flex;gap:8px"><input id="aiStageMin" type="number" value="${d.stageMinDays}"><span>～</span><input id="aiStageMax" type="number" value="${d.stageMaxDays}"></div></div><div class="field"><label>撥打時段</label><div style="display:flex;gap:8px"><input id="aiHourStart" type="number" value="${d.callHourStart}"><span>～</span><input id="aiHourEnd" type="number" value="${d.callHourEnd}"></div></div><label class="check-row"><input id="aiWeekdays" type="checkbox" ${d.callWeekdaysOnly ? 'checked' : ''}> 僅平日</label></article><article class="settings-card" style="grid-column:span 2"><h4>手機對照（編號=手機）</h4><p class="field-hint">同步載入時會自動從星鴻房客資料寫入；亦可手動覆寫。</p><div class="field"><textarea id="aiPhoneMap">${esc(Object.entries(global.state.ai.phoneMap).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea></div></article></div>`;
+    global.$('aisettings').innerHTML = `<div class="view-head"><div><h3>AI 撥打頻率設定</h3><p>同步至 Cloudflare Worker｜${callSlotsSummary(d)}</p></div><div class="spacer"></div><div class="ai-toolbar"><button class="btn" onclick="AiRetell.test()">測試連線</button><button class="btn primary" onclick="AiRetell.saveSettings()">儲存並同步</button></div></div>${autoDialBannerHtml()}<div class="settings-grid">${renderTestDialCard(esc)}<article class="settings-card"><h4>Cloudflare / Retell</h4><div class="field"><label>Worker URL</label><input id="aiMiddlewareUrl" value="${esc(global.state.ai.middlewareUrl)}"></div><div class="field"><label>from_number</label><input id="aiFromNumber" value="${esc(d.retellFromNumber || '')}"></div><div class="field"><label>Agent ID</label><input id="aiAgentId" value="${esc(d.retellAgentId || '')}"></div><div class="field"><label>Agent 版本</label><select id="aiAgentVersion"><option value="latest_published" ${String(d.retellAgentVersion) === 'latest_published' || d.retellAgentVersion == null ? 'selected' : ''}>自動：Retell 最新已發布版</option></select><p class="field-hint">你在 Retell 後台發布新版本後，下一通外撥會自動用新版，不必再回這裡改。</p></div></article><article class="settings-card"><h4>每日撥打頻率</h4><div class="field"><label>每案每日上限</label><input id="aiDailyPerCase" type="number" min="1" max="12" value="${d.dailyMaxPerCase}" onchange="AiRetell.syncCallSlotInputs()" oninput="AiRetell.syncCallSlotInputs()"></div><div class="field"><label>全系統每日上限</label><input id="aiDailyTotal" type="number" min="1" value="${d.dailyMaxTotal}"></div><div class="field"><label>每案累計上限</label><input id="aiLifetime" type="number" min="1" value="${d.lifetimeMaxPerCase}"></div><div class="field"><label>AI 階段（天）</label><div style="display:flex;gap:8px"><input id="aiStageMin" type="number" value="${d.stageMinDays}"><span>～</span><input id="aiStageMax" type="number" value="${d.stageMaxDays}"></div></div></article>${renderCallSlotsSection(d)}<article class="settings-card settings-card-wide"><h4>手機對照（編號=手機）</h4><p class="field-hint">同步載入時會自動從星鴻房客資料寫入；亦可手動覆寫。</p><div class="field"><textarea id="aiPhoneMap">${esc(Object.entries(global.state.ai.phoneMap).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea></div></article></div>`;
   }
 
   function readAiSettingsForm() {
     global.state.ai.middlewareUrl = global.$('aiMiddlewareUrl').value.trim();
+    const dailyMaxPerCase = Math.max(1, +(global.$('aiDailyPerCase').value || 3));
+    const callHourStart = Math.min(23, Math.max(0, +(global.$('aiHourStart').value || 9)));
+    const callHourEnd = Math.min(24, Math.max(1, +(global.$('aiHourEnd').value || 17)));
+    const callSlots = [...(global.document.querySelectorAll('.ai-call-slot-time') || [])].map((el) => {
+      const [h, m] = String(el.value || '09:00').split(':').map(Number);
+      return { hour: h, minute: m };
+    });
     global.state.ai.dialSettings = {
       ...global.state.ai.dialSettings,
       retellFromNumber: global.$('aiFromNumber').value.trim(),
       retellAgentId: global.$('aiAgentId').value.trim(),
       retellAgentVersion: global.$('aiAgentVersion')?.value || 'latest_published',
-      dailyMaxPerCase: Math.max(1, +(global.$('aiDailyPerCase').value || 3)),
+      dailyMaxPerCase,
       dailyMaxTotal: Math.max(1, +(global.$('aiDailyTotal').value || 50)),
       lifetimeMaxPerCase: Math.max(1, +(global.$('aiLifetime').value || 12)),
       stageMinDays: Math.max(1, +(global.$('aiStageMin').value || 4)),
       stageMaxDays: Math.max(+(global.$('aiStageMin').value || 4), +(global.$('aiStageMax').value || 7)),
-      callHourStart: Math.min(23, Math.max(0, +(global.$('aiHourStart').value || 9))),
-      callHourEnd: Math.min(24, Math.max(1, +(global.$('aiHourEnd').value || 17))),
+      callHourStart,
+      callHourEnd,
       callWeekdaysOnly: global.$('aiWeekdays').checked,
+      callSlotToleranceMin: Math.max(5, Math.min(120, +(global.$('aiSlotTolerance')?.value || 30))),
+      callSlots: normalizeCallSlots({ dailyMaxPerCase, callHourStart, callHourEnd, callSlots }),
       autoDispatchEnabled: Boolean(global.state.ai.dialSettings.autoDispatchEnabled),
     };
     const map = {};
@@ -510,6 +617,22 @@
     normalizePhone,
     renderCollection,
     renderAiSettings,
+    syncCallSlotInputs,
+    submitSettingsPassword() {
+      const input = global.$('aiSettingsPassword');
+      const msg = global.$('aiSettingsGateMsg');
+      if (!input) return;
+      if (unlockSettingsPassword(input.value)) {
+        renderAiSettings();
+        syncAiSettingsFromServer()
+          .then(() => global.render())
+          .catch(() => global.render());
+        return;
+      }
+      if (msg) msg.textContent = '密碼錯誤，請再試一次';
+      input.value = '';
+      input.focus();
+    },
     syncSettings: syncAiSettingsFromServer,
     syncResults: syncAiResultsFromServer,
     async saveSettings() {
