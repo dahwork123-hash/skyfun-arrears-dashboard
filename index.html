@@ -22,12 +22,16 @@
     /* Desktop readability overrides for the filtered management workspace. */
     body:has(.workspace.ready){overflow:hidden}
     body:has(.workspace.ready) .main{display:flex;flex-direction:column;height:100vh;overflow:hidden}
-    body:has(.workspace.ready) .content{flex:1;min-height:0;overflow:hidden;padding:0 20px 0;display:flex;flex-direction:column}
+    body:has(.workspace.ready) .content{flex:1;min-height:0;overflow:hidden;padding:0 20px 8px;display:flex;flex-direction:column}
     body:has(.workspace.ready) #emptyState{display:none!important}
-    .workspace.ready{display:flex!important;flex-direction:column;flex:1;min-height:0;overflow:hidden;grid-template-columns:none}
-    .filters{position:relative;flex:0 0 auto;width:100%;background:var(--panel);border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px;padding:12px 16px 16px;margin:0 0 10px;box-shadow:var(--shadow);overflow:auto;height:var(--filters-height,min(42vh,420px));min-height:140px;max-height:min(75vh,720px);z-index:auto}
-    .filters .filter-head{margin-bottom:10px}
+    .workspace.ready{display:flex!important;flex-direction:column;flex:1;min-height:0;overflow:hidden;grid-template-columns:none;gap:0}
+    .filters{position:relative;flex:0 0 auto;width:100%;background:var(--panel);border:1px solid var(--line);border-top:1px solid var(--line);border-radius:0 0 12px 12px;padding:10px 16px 0;margin:0 0 8px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;height:auto;max-height:none;min-height:0;z-index:auto}
+    .filters.filters-sized{height:var(--filters-height,280px);max-height:min(75vh,720px);min-height:120px}
+    .filters-scroll{flex:0 0 auto;min-height:0;overflow:visible;padding-bottom:4px}
+    .filters.filters-sized .filters-scroll{flex:1 1 auto;overflow:auto;-webkit-overflow-scrolling:touch}
+    .filters .filter-head{margin-bottom:8px;flex-shrink:0}
     .filters .filter-head h3{font-size:16px}
+    .filters .filter-head .filter-resize-hint{font-size:11px;color:var(--muted);font-weight:700;margin-left:8px}
     .filters .search{max-width:none;width:100%;margin-bottom:12px;font-size:15px;padding:12px 13px}
     #filterGroups{display:flex;flex-wrap:wrap;gap:10px 12px;align-items:stretch}
     .filters .filter-group{border-top:0;padding:10px 12px;margin:0;background:#f8fafc;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
@@ -43,12 +47,14 @@
     .filters .pill{padding:5px 10px;font-size:13px;line-height:1.4}
     .filters.collapsed #filterGroups{display:none}
     .filters.collapsed .search{margin-bottom:0}
-    .filters.collapsed{max-height:none;overflow:visible;height:auto!important;min-height:0}
-    .filters-resize-handle{position:absolute;left:8px;right:8px;bottom:0;height:12px;cursor:ns-resize;touch-action:none;z-index:2;border-radius:0 0 10px 10px}
-    .filters-resize-handle::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:44px;height:4px;border-radius:99px;background:#c5d0de;box-shadow:0 5px 0 #c5d0de;transition:background .15s,box-shadow .15s}
+    .filters.collapsed .filters-scroll{display:none}
+    .filters.collapsed{max-height:none;overflow:visible;height:auto!important;min-height:0;padding-bottom:10px}
+    .filters-resize-handle{flex:0 0 auto;position:relative;left:auto;right:auto;bottom:auto;height:14px;cursor:ns-resize;touch-action:none;z-index:2;margin:4px -8px 0;border-radius:0 0 10px 10px}
+    .filters-resize-handle::before{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:48px;height:4px;border-radius:99px;background:#c5d0de;box-shadow:0 5px 0 #c5d0de;transition:background .15s,box-shadow .15s}
+    .filters-resize-handle::after{content:'拖曳調整查詢條件高度';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:10px;color:transparent;pointer-events:none}
     .filters-resize-handle:hover::before,.filters-resize-handle:active::before{background:var(--blue);box-shadow:0 5px 0 var(--blue)}
     .filters.collapsed .filters-resize-handle{display:none}
-    .stage{flex:1 1 auto;min-height:0;overflow:auto;padding:0 0 16px;-webkit-overflow-scrolling:touch;position:relative;z-index:1}
+    .stage{flex:1 1 auto;min-height:0;overflow:auto;padding:0 0 12px;-webkit-overflow-scrolling:touch;position:relative;z-index:1}
     .stage:has(#cases.active){overflow:hidden;display:flex;flex-direction:column;padding-bottom:0}
     .stage:has(#cases.active)>.scope-bar{flex:0 0 auto;margin-bottom:10px}
     .stage > .scope-bar{margin-bottom:12px}
@@ -148,7 +154,7 @@
     <div class="content">
       <section class="empty" id="emptyState"><div class="empty-card"><div class="empty-icon">⇧</div><h3>建立今日呆帳追蹤清單</h3><p>登入後會自動同步星鴻並載入。若未出現，可再按「同步星鴻並載入」（約十幾秒；逾時改載快取）。</p><button class="btn primary" onclick="loadDailyData(true)">同步星鴻並載入</button>&nbsp;<button class="btn" onclick="document.getElementById('fileInput').click()">選擇 Excel 匯入</button><div class="empty-notes"><span>星鴻系統為唯一口徑</span><span>1天以上即呆帳</span><span>7／14／30天警示</span><span>開啟自動同步一次</span><span>每日 07:00 排程</span><span>每 15 分鐘刷新快取</span></div></div></section>
       <section class="workspace" id="workspace">
-        <div class="filters" id="filtersPanel"><div class="filter-head"><h3>查詢條件</h3><div class="spacer"></div><button class="link-btn" type="button" id="filterCollapseBtn" onclick="toggleFiltersCollapse()">收合</button><button class="link-btn" onclick="clearFilters()">清除全部</button></div><input class="search" id="query" placeholder="編號／地址／承租人／備註" oninput="state.filters.q=this.value.trim();state.page=1;render()"><div id="filterGroups"></div><div class="filters-resize-handle" id="filtersResizeHandle" role="separator" aria-orientation="horizontal" aria-label="拖曳調整查詢條件高度" title="拖曳調整高度"></div></div>
+        <div class="filters" id="filtersPanel"><div class="filter-head"><h3>查詢條件</h3><span class="filter-resize-hint">底部灰線可拖曳調整高度</span><div class="spacer"></div><button class="link-btn" type="button" id="filterCollapseBtn" onclick="toggleFiltersCollapse()">收合</button><button class="link-btn" onclick="clearFilters()">清除全部</button></div><div class="filters-scroll" id="filtersScroll"><input class="search" id="query" placeholder="編號／地址／承租人／備註" oninput="state.filters.q=this.value.trim();state.page=1;render()"><div id="filterGroups"></div></div><div class="filters-resize-handle" id="filtersResizeHandle" role="separator" aria-orientation="horizontal" aria-label="拖曳調整查詢條件高度" title="拖曳調整查詢條件高度"></div></div>
         <div class="stage">
           <div class="scope-bar" id="scopeBar"></div>
           <section class="view active" id="overview"></section>
@@ -479,9 +485,11 @@ function buildFilters(){const host=$('filterGroups');host.innerHTML=FILTER_DEFS.
 function toggleFilter(key,value){const a=state.filters[key],i=a.indexOf(value);i>=0?a.splice(i,1):a.push(value);if(key==='region'){state.filters.office=[];state.filters.staff=[]}if(key==='office')state.filters.staff=[];state.page=1;buildFilters();render()}
 function clearFilters(){state.filters=DEFAULT_FILTERS();$('query').value='';state.page=1;buildFilters();render();toast('已清除查詢條件，保留預設「轉租」')}
 function toggleFiltersCollapse(){const el=document.querySelector('#workspace .filters'),btn=$('filterCollapseBtn');if(!el||!btn)return;el.classList.toggle('collapsed');btn.textContent=el.classList.contains('collapsed')?'展開':'收合'}
-const FILTERS_HEIGHT_KEY='skyfun-filters-height';
-function applyFiltersHeight(panel,h){const min=140,max=Math.round(window.innerHeight*0.75);const next=Math.max(min,Math.min(max,Math.round(h)));panel.style.setProperty('--filters-height',next+'px');panel.style.height=next+'px';panel.style.maxHeight=next+'px';return next}
-function initFiltersResize(){const panel=$('filtersPanel');const handle=$('filtersResizeHandle');if(!panel||!handle)return;const saved=+localStorage.getItem(FILTERS_HEIGHT_KEY);if(saved>=140&&saved<=window.innerHeight*0.85)applyFiltersHeight(panel,saved);let startY=0,startH=0;const onMove=e=>{const y=e.clientY??e.touches?.[0]?.clientY??startY;applyFiltersHeight(panel,startH+(y-startY))};const onUp=()=>{document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);document.removeEventListener('touchmove',onMove);document.removeEventListener('touchend',onUp);document.body.style.cursor='';document.body.style.userSelect='';const h=panel.getBoundingClientRect().height;localStorage.setItem(FILTERS_HEIGHT_KEY,String(Math.round(h)))};const onDown=e=>{if(panel.classList.contains('collapsed'))return;startY=e.clientY??e.touches?.[0]?.clientY??0;startH=panel.getBoundingClientRect().height;document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);document.addEventListener('touchmove',onMove,{passive:false});document.addEventListener('touchend',onUp);document.body.style.cursor='ns-resize';document.body.style.userSelect='none';e.preventDefault()};handle.addEventListener('mousedown',onDown);handle.addEventListener('touchstart',onDown,{passive:false})}
+const FILTERS_HEIGHT_KEY='skyfun-filters-height-v2';
+const FILTERS_SIZED_KEY='skyfun-filters-sized-v2';
+function applyFiltersHeight(panel,h){const min=120,max=Math.round(window.innerHeight*0.72);const next=Math.max(min,Math.min(max,Math.round(h)));panel.classList.add('filters-sized');panel.style.setProperty('--filters-height',next+'px');panel.style.height=next+'px';panel.style.maxHeight=next+'px';return next}
+function resetFiltersAutoHeight(panel){panel.classList.remove('filters-sized');panel.style.removeProperty('--filters-height');panel.style.height='';panel.style.maxHeight=''}
+function initFiltersResize(){const panel=$('filtersPanel');const handle=$('filtersResizeHandle');if(!panel||!handle)return;if(localStorage.getItem(FILTERS_SIZED_KEY)==='1'){const saved=+localStorage.getItem(FILTERS_HEIGHT_KEY);if(saved>=120&&saved<=window.innerHeight*0.85)applyFiltersHeight(panel,saved)}else resetFiltersAutoHeight(panel);let startY=0,startH=0;const onMove=e=>{const y=e.clientY??e.touches?.[0]?.clientY??startY;applyFiltersHeight(panel,startH+(y-startY))};const onUp=()=>{document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);document.removeEventListener('touchmove',onMove);document.removeEventListener('touchend',onUp);document.body.style.cursor='';document.body.style.userSelect='';const h=panel.getBoundingClientRect().height;localStorage.setItem(FILTERS_HEIGHT_KEY,String(Math.round(h)));localStorage.setItem(FILTERS_SIZED_KEY,'1')};const onDown=e=>{if(panel.classList.contains('collapsed'))return;if(!panel.classList.contains('filters-sized'))applyFiltersHeight(panel,panel.scrollHeight||panel.getBoundingClientRect().height);startY=e.clientY??e.touches?.[0]?.clientY??0;startH=panel.getBoundingClientRect().height;document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);document.addEventListener('touchmove',onMove,{passive:false});document.addEventListener('touchend',onUp);document.body.style.cursor='ns-resize';document.body.style.userSelect='none';e.preventDefault()};handle.addEventListener('mousedown',onDown);handle.addEventListener('touchstart',onDown,{passive:false});handle.addEventListener('dblclick',()=>{resetFiltersAutoHeight(panel);localStorage.removeItem(FILTERS_HEIGHT_KEY);localStorage.removeItem(FILTERS_SIZED_KEY);toast('已恢復查詢條件自動高度')})}
 function filteredCases(){const f=state.filters,q=f.q.toLowerCase();return state.cases.filter(c=>(!q||c.search.includes(q)||String(c.aiProgress||'').toLowerCase().includes(q)||String(c.displayMemo||'').toLowerCase().includes(q))&&(!f.region.length||f.region.includes(c.region))&&(!f.office.length||f.office.includes(c.office))&&(!f.staff.length||f.staff.includes(c.staff))&&(!f.city.length||f.city.includes(c.city))&&(!f.type.length||f.type.includes(c.type))&&(!f.status.length||[...c.statuses].some(x=>f.status.includes(x)))&&(!f.alert.length||f.alert.includes(c.alert.key))&&(!f.stage.length||f.stage.includes(String(c.collectionStage)))&&(!f.risk.length||(f.risk.includes('')&&!c.riskLevel)||f.risk.includes(c.riskLevel)))}
 function sum(rows,key='amount'){return rows.reduce((s,r)=>s+Number(r[key]||0),0)}
 function scopeText(rows){const tags=[];for(const [k,l] of FILTER_DEFS){if(state.filters[k].length)tags.push(`${l}：${state.filters[k].map(v=>labelOption(k,v)).join('、')}`)}if(state.filters.q)tags.push(`關鍵字：${state.filters.q}`);return tags.length?tags.join('｜'):'目前範圍：全國所有有效呆帳'}
